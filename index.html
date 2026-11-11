@@ -1,0 +1,1154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>生产类安全库存</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-ui@2.15.14/lib/theme-chalk/index.css">
+<style>
+  html, body, #app { height: 100%; margin: 0; overflow: hidden; }
+  body { color: #606266; font-family: "Helvetica Neue", Helvetica, "PingFang SC", "Microsoft YaHei", Arial, sans-serif; font-size: 13px; }
+  #app { display: flex; flex-direction: column; background: #f2f4f7; }
+  .topbar {
+    height: 50px; flex: none; display: flex; align-items: center; color: #fff; padding: 0 14px;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,0) 42%),
+      linear-gradient(90deg, #163e9c 0%, #1d5ed8 46%, #3c86ea 100%);
+    position: relative;
+  }
+  .topbar:after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 18px; pointer-events: none;
+    background: linear-gradient(180deg, transparent, rgba(8, 28, 84, .18));
+  }
+  .brand { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 600; letter-spacing: .5px; width: 196px; }
+  .brand i { width: 22px; height: 22px; border: 2px solid #fff; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; font-style: normal; font-size: 12px; }
+  .platform { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 600; margin-left: 8px; }
+  .top-search { margin-left: auto; width: 280px; }
+  .top-search .el-input__inner { background: rgba(255,255,255,.16); border-color: transparent; color: #fff; height: 30px; line-height: 30px; }
+  .top-search .el-input__inner::placeholder { color: rgba(255,255,255,.75); }
+  .top-icons { display: flex; align-items: center; gap: 14px; margin-left: 18px; font-size: 16px; }
+  .user { display: flex; align-items: center; gap: 6px; margin-left: 8px; font-size: 13px; }
+  .avatar { width: 24px; height: 24px; border-radius: 50%; background: #7eb6ff; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; }
+  .body { flex: 1; min-height: 0; display: flex; }
+  .sider {
+    width: 200px; flex: none; color: #fff; overflow: auto;
+    background: linear-gradient(180deg, #1a45a8 0%, #1d4eb8 62%, #163e86 100%);
+  }
+  .menu-item {
+    height: 40px; display: flex; align-items: center; justify-content: space-between;
+    padding: 0 16px; cursor: pointer; font-size: 14px; color: rgba(255,255,255,.92);
+  }
+  .menu-item:hover { background: rgba(255,255,255,.08); }
+  .menu-item.on { background: #3b82f6; color: #fff; }
+  .menu-item i { font-size: 12px; opacity: .8; }
+  .workspace { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .tabs { height: 38px; flex: none; background: #fff; border-bottom: 1px solid #e4e7ed; display: flex; align-items: flex-end; padding: 0 10px; gap: 4px; }
+  .tab {
+    height: 32px; padding: 0 14px; display: flex; align-items: center; gap: 8px; color: #606266; cursor: pointer;
+    border: 1px solid transparent; border-bottom: none; border-radius: 3px 3px 0 0; font-size: 13px;
+  }
+  .tab.on { color: #409eff; background: #fff; border-color: #e4e7ed; box-shadow: inset 0 -2px 0 #409eff; }
+  .tab .el-icon-close { font-size: 12px; color: #909399; }
+  .content { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding: 8px; }
+  .panel { background: #fff; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,.06); min-height: 0; display: flex; flex-direction: column; padding: 8px 10px 6px; }
+  .panel.main { flex: 1.25; }
+  .panel.south { flex: .75; }
+  .search-row { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; }
+  .filter-tag { color: #606266; margin-right: 6px; }
+  .search-row .el-form-item { margin: 0; }
+  .search-row .el-form-item__label { color: #606266; padding-right: 8px; }
+  .toolbar { display: flex; align-items: center; justify-content: space-between; margin: 8px 0 6px; }
+  .toolbar .el-button { margin-right: 6px; }
+  .tool-icons { color: #909399; display: flex; gap: 12px; font-size: 15px; }
+  .tool-icons i { cursor: pointer; }
+  .table-wrap { flex: 1; min-height: 0; }
+  .page-list__footer { display: flex; justify-content: flex-end; padding-top: 6px; }
+  .el-table { color: #606266; }
+  .el-table th { background: #f5f7fa !important; color: #909399; font-weight: 500; }
+  .el-table td, .el-table th { padding: 5px 0; }
+  .el-tag { border: none; }
+  .home-panel { flex: 1; background: #fff; border-radius: 4px; }
+  /* 安全库存试算插件 */
+  .sug { font-weight: 600; }
+  .sug.up { color: #e6a23c; }
+  .sug.down { color: #67c23a; }
+  .sug.same { color: #606266; }
+  .muted { color: #c0c4cc; }
+  .plugin-note { color: #909399; font-size: 12px; margin-left: 4px; }
+  .kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 10px 0; }
+  .kpi { background: #f5f7fa; border-radius: 4px; padding: 8px 10px; min-width: 0; }
+  .kpi .k { color: #909399; font-size: 12px; }
+  .kpi .v { color: #303133; font-size: 16px; font-weight: 600; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kpi .s { color: #909399; font-size: 12px; margin-top: 2px; }
+  .kpi .v.up { color: #e6a23c; } .kpi .v.down { color: #67c23a; } .kpi .v.bad { color: #f56c6c; }
+  .detail { padding: 0 18px 24px; color: #606266; font-size: 13px; }
+  .detail h4 { margin: 18px 0 8px; color: #303133; font-size: 14px; font-weight: 600; }
+  .detail .why { line-height: 1.75; background: #f8fafc; border-left: 3px solid #409eff; padding: 8px 12px; }
+  .detail .param-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+  .detail .param-row label { color: #909399; }
+  .chart { height: 320px; width: 100%; }
+  .fb-list { margin-top: 8px; }
+  .fb-item { border-bottom: 1px dashed #ebeef5; padding: 6px 0; font-size: 12px; }
+  .chat { max-height: 320px; overflow: auto; margin-bottom: 8px; }
+  .chat .q { color: #303133; font-weight: 600; margin-top: 8px; }
+  .chat .a { white-space: pre-wrap; line-height: 1.7; background: #f5f7fa; padding: 6px 10px; border-radius: 4px; margin-top: 4px; }
+  .sum-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .sum-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 12px; }
+  .sum-table td, .sum-table th { border: 1px solid #ebeef5; padding: 4px 8px; text-align: right; }
+  .sum-table td:first-child, .sum-table th:first-child { text-align: left; }
+  .sum-table th { background: #f5f7fa; color: #909399; font-weight: 500; }
+  .sum-table .up, .kpi .v .up { color: #e6a23c; } .sum-table .down, .kpi .v .down { color: #67c23a; }
+  .sum-table tr.lv-cur td { background: #ecf5ff; }
+  .hold-tag { color: #909399; font-size: 11px; margin-left: 4px; font-weight: 400; }
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <div class="brand"><i>华</i>卫华重型机械</div>
+    <div class="platform"><i class="el-icon-s-grid"></i>仓储管理平台</div>
+    <div class="top-search"><el-input size="small" prefix-icon="el-icon-search" placeholder="系统快捷导航"></el-input></div>
+    <div class="top-icons">
+      <i class="el-icon-monitor"></i>
+      <i class="el-icon-magic-stick"></i>
+      <i class="el-icon-refresh"></i>
+    </div>
+    <div class="user"><span class="avatar">王</span>王瑞双</div>
+  </header>
+  <div class="body">
+    <aside class="sider">
+      <div v-for="item in menus" :key="item.id" class="menu-item" :class="{ on: activeMenu === item.id }" @click="openMenu(item)">
+        <span>{{ item.name }}</span>
+        <i class="el-icon-arrow-right"></i>
+      </div>
+    </aside>
+    <section class="workspace">
+      <div class="tabs">
+        <div class="tab" :class="{ on: view === 'home' }" @click="openMenu(homeMenu)">首页</div>
+        <div v-if="view === 'list'" class="tab on">{{ tabTitle }} <i class="el-icon-close" @click="openMenu(homeMenu)"></i></div>
+      </div>
+      <div v-if="view === 'home'" class="content"><div class="home-panel"></div></div>
+      <div v-else class="content">
+        <div class="panel main">
+          <div class="search-row">
+            <span class="filter-tag" v-for="tag in searchTags" :key="tag.key">{{ tag.text }}</span>
+            <el-form :inline="true" size="small" label-position="left">
+              <el-form-item label="工厂">
+                <el-select v-model="query.plantno" style="width:120px">
+                  <el-option label="全部" value=""></el-option>
+                  <el-option v-for="c in companies" :key="c.companyId" :label="c.name" :value="c.companyId"></el-option>
+                </el-select>
+              </el-form-item>
+              <el-form-item label="状态">
+                <el-select v-model="query.state" style="width:120px">
+                  <el-option label="全部" value=""></el-option>
+                  <el-option label="正常" value="0"></el-option>
+                  <el-option label="已删除" value="1"></el-option>
+                </el-select>
+              </el-form-item>
+              <el-form-item label="物料编码">
+                <el-input v-model="query.no" clearable style="width:160px" @keyup.enter.native="search"></el-input>
+              </el-form-item>
+              <el-form-item label="物料名称">
+                <el-input v-model="query.name" clearable style="width:160px" @keyup.enter.native="search"></el-input>
+              </el-form-item>
+              <el-form-item label="试算报警">
+                <el-select v-model="query.alert" style="width:130px">
+                  <el-option label="全部" value=""></el-option>
+                  <el-option label="偏差大(≥50%)" value="high"></el-option>
+                  <el-option label="偏差中(30–50%)" value="medium"></el-option>
+                  <el-option label="基本一致" value="ok"></el-option>
+                  <el-option label="无建议" value="none"></el-option>
+                </el-select>
+              </el-form-item>
+              <el-button type="primary" size="small" @click="search">查询</el-button>
+              <el-button size="small" @click="resetSearch">清空</el-button>
+            </el-form>
+          </div>
+          <div class="toolbar">
+            <div>
+              <el-button type="primary" size="mini" icon="el-icon-plus" @click="openAdd">新增</el-button>
+              <el-button size="mini" icon="el-icon-edit" :disabled="selection.length !== 1" @click="openEdit(selection[0])">修改</el-button>
+              <el-button size="mini" icon="el-icon-delete" @click="removeRows(selection)">删除</el-button>
+              <el-button size="mini" icon="el-icon-download" @click="downloadTemplate">下载模板</el-button>
+              <el-button size="mini" icon="el-icon-upload2" @click="importVisible = true">上传</el-button>
+              <el-button size="mini" icon="el-icon-plus" :disabled="selection.length !== 1" @click="openRate(selection[0])">新增组合物料</el-button>
+              <el-button size="mini" icon="el-icon-download" @click="downloadStockTemplate">下载备货模板</el-button>
+              <el-button size="mini" type="warning" plain icon="el-icon-data-analysis" @click="openBatch">安全库存试算</el-button>
+              <el-button size="mini" type="primary" plain icon="el-icon-data-line" @click="openCharts()">曲线看板</el-button>
+              <span class="plugin-note" v-if="results">试算 {{ results.builtAt.replace('T', ' ') }} · {{ results.params.level ? results.params.level + '档 · ' : '' }}P{{ Math.round(results.params.serviceLevel * 100) }}</span>
+              <span class="plugin-note" v-else>未载入试算结果</span>
+            </div>
+            <div class="tool-icons">
+              <i class="el-icon-refresh" @click="search"></i>
+              <i class="el-icon-download" @click="downloadTemplate"></i>
+              <i class="el-icon-s-operation"></i>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <el-table ref="mainTable" :data="pageRows" border size="small" height="100%" highlight-current-row @selection-change="onSelect" @row-click="onRowClick">
+              <el-table-column type="selection" width="46"></el-table-column>
+              <el-table-column type="index" :index="indexMethod" label="序号" width="60"></el-table-column>
+              <el-table-column prop="plantno" label="工厂" width="90"></el-table-column>
+              <el-table-column prop="no" label="物料编码" width="130" show-overflow-tooltip></el-table-column>
+              <el-table-column prop="name" label="物料名称" min-width="260" show-overflow-tooltip></el-table-column>
+              <el-table-column prop="unit" label="单位" width="80"></el-table-column>
+              <el-table-column prop="hquantity" label="最高库存" width="100"></el-table-column>
+              <el-table-column prop="lquantity" label="安全库存" width="100"></el-table-column>
+              <el-table-column label="建议安全库存" width="110">
+                <template slot-scope="s">
+                  <span v-if="resultFor(s.row) && resultFor(s.row).ss != null" :class="'sug ' + dirClass(resultFor(s.row), s.row)">{{ fmt(resultFor(s.row).ss) }}<span v-if="resultFor(s.row).hold" class="hold-tag" :title="'模型值 ' + fmt(resultFor(s.row).rawSs) + '，' + resultFor(s.row).hold">保持</span></span>
+                  <span v-else class="muted">{{ statusShort(resultFor(s.row)) }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="建议最高库存" width="110">
+                <template slot-scope="s">
+                  <span v-if="resultFor(s.row) && resultFor(s.row).max != null">{{ fmt(resultFor(s.row).max) }}</span>
+                  <span v-else class="muted">—</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="试算报警" width="96">
+                <template slot-scope="s">
+                  <el-tag v-if="alertOf(s.row) === 'high'" type="danger" size="mini">偏差大</el-tag>
+                  <el-tag v-else-if="alertOf(s.row) === 'medium'" type="warning" size="mini">偏差中</el-tag>
+                  <el-tag v-else-if="alertOf(s.row) === 'ok'" type="success" size="mini">基本一致</el-tag>
+                  <span v-else class="muted">—</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="可信度" width="70">
+                <template slot-scope="s"><span>{{ (resultFor(s.row) && resultFor(s.row).conf) || '' }}</span></template>
+              </el-table-column>
+              <el-table-column prop="pquantity" label="包装数量" width="100"></el-table-column>
+              <el-table-column prop="multip" label="备货倍数" width="100"></el-table-column>
+              <el-table-column prop="status" label="状态" width="90">
+                <template slot-scope="s">
+                  <el-tag v-if="Number(s.row.status) === 1" type="danger" size="mini">已删除</el-tag>
+                  <el-tag v-else size="mini">正常</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="pcycle" label="采购周期" width="100"></el-table-column>
+              <el-table-column prop="rno" label="生产编码" width="120" show-overflow-tooltip></el-table-column>
+              <el-table-column prop="rname" label="生产名称" width="160" show-overflow-tooltip></el-table-column>
+              <el-table-column prop="cuser" label="创建人" width="100"></el-table-column>
+              <el-table-column prop="ctime" label="创建时间" width="160"></el-table-column>
+              <el-table-column prop="muser" label="修改人" width="100"></el-table-column>
+              <el-table-column prop="mtime" label="修改时间" width="160"></el-table-column>
+              <el-table-column prop="duser" label="删除人" width="100"></el-table-column>
+              <el-table-column prop="dtime" label="删除时间" width="160"></el-table-column>
+              <el-table-column label="操作" width="70" fixed="right">
+                <template slot-scope="s"><el-button type="text" size="mini" @click.stop="openDetail(s.row)">试算</el-button></template>
+              </el-table-column>
+            </el-table>
+          </div>
+          <div class="page-list__footer">
+            <el-pagination background layout="total, prev, pager, next, sizes" :total="filtered.length" :page-sizes="[10, 20, 50, 100, 200, 500]" :page-size="page.size" :current-page="page.current" @size-change="onSize" @current-change="onPage"></el-pagination>
+          </div>
+        </div>
+        <div class="panel south">
+          <div class="toolbar">
+            <div>
+              <el-button size="mini" icon="el-icon-edit" :disabled="rateSelection.length !== 1" @click="openRateEdit(rateSelection[0])">修改</el-button>
+              <el-button size="mini" icon="el-icon-delete" @click="removeRate(rateSelection)">删除</el-button>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <el-table :data="currentRates" border size="small" height="100%" empty-text="暂无数据" @selection-change="onRateSelect">
+              <el-table-column type="selection" width="46"></el-table-column>
+              <el-table-column type="index" label="序号" width="60"></el-table-column>
+              <el-table-column prop="name" label="编码" width="240"></el-table-column>
+              <el-table-column prop="rate" label="倍数" width="100"></el-table-column>
+              <el-table-column prop="status" label="状态" width="100">
+                <template slot-scope="s">
+                  <el-tag v-if="Number(s.row.status) === 1" type="danger" size="mini">已删除</el-tag>
+                  <el-tag v-else size="mini">正常</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column prop="cuser" label="创建人" width="100"></el-table-column>
+              <el-table-column prop="ctime" label="创建时间" width="160"></el-table-column>
+              <el-table-column prop="muser" label="修改人" width="100"></el-table-column>
+              <el-table-column prop="mtime" label="修改时间" width="160"></el-table-column>
+              <el-table-column prop="duser" label="删除人" width="100"></el-table-column>
+              <el-table-column prop="dtime" label="删除时间" width="160"></el-table-column>
+            </el-table>
+          </div>
+          <div class="page-list__footer">
+            <el-pagination background layout="total, prev, pager, next, sizes" :total="currentRates.length" :page-size="50" :current-page="1"></el-pagination>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <el-dialog :title="formTitle" :visible.sync="formVisible" width="520px" :close-on-click-modal="false">
+    <el-form ref="form" :model="form" :rules="rules" label-width="120px" size="small">
+      <el-form-item label="公司" prop="plantno">
+        <el-select v-model="form.plantno" placeholder="请选择" style="width:100%">
+          <el-option v-for="c in companies" :key="c.companyId" :label="c.name" :value="c.companyId"></el-option>
+        </el-select>
+      </el-form-item>
+      <el-form-item label="物料编码" prop="no"><el-input v-model="form.no" placeholder="请输入"></el-input></el-form-item>
+      <el-form-item label="物料名称" prop="name"><el-input v-model="form.name" placeholder="请输入"></el-input></el-form-item>
+      <el-form-item label="生产编码" prop="rno"><el-input v-model="form.rno" placeholder="请输入"></el-input></el-form-item>
+      <el-form-item label="生产名称" prop="rname"><el-input v-model="form.rname" placeholder="请输入"></el-input></el-form-item>
+      <el-form-item label="单位" prop="unit"><el-input v-model="form.unit" placeholder="请输入"></el-input></el-form-item>
+      <el-form-item label="最高库存" prop="hquantity"><el-input v-model="form.hquantity" type="number" placeholder="请输入值"></el-input></el-form-item>
+      <el-form-item label="安全库存" prop="lquantity"><el-input v-model="form.lquantity" type="number" placeholder="请输入值"></el-input></el-form-item>
+      <el-form-item label="包装数量" prop="pquantity"><el-input v-model="form.pquantity" type="number" placeholder="请输入值"></el-input></el-form-item>
+    </el-form>
+    <span slot="footer">
+      <el-button size="small" @click="formVisible = false">取消</el-button>
+      <el-button size="small" type="primary" @click="saveForm">确定</el-button>
+    </span>
+  </el-dialog>
+
+  <el-dialog :title="rateTitle" :visible.sync="rateVisible" width="420px" :close-on-click-modal="false">
+    <el-form ref="rateForm" :model="rateForm" :rules="rateRules" label-width="120px" size="small">
+      <el-form-item label="物料编码" prop="name"><el-input v-model="rateForm.name" placeholder="请输入"></el-input></el-form-item>
+      <el-form-item label="倍数" prop="rate"><el-input v-model="rateForm.rate" type="number" placeholder="请输入值"></el-input></el-form-item>
+    </el-form>
+    <span slot="footer">
+      <el-button size="small" @click="rateVisible = false">取消</el-button>
+      <el-button size="small" type="primary" @click="saveRate">确定</el-button>
+    </span>
+  </el-dialog>
+
+  <el-dialog title="安全库存批量试算" :visible.sync="batch.visible" width="920px">
+    <div v-if="!api.ok" style="margin-bottom:10px">
+      <el-alert type="info" :closable="false" show-icon title="当前是静态打开，只能查看已有结果。要重跑、看单物料图表、人工确认和 AI 助手，请在 safty-material-sim 目录运行 python3 server.py 后打开 http://127.0.0.1:8770/"></el-alert>
+    </div>
+    <div class="detail" style="padding:0">
+      <div class="param-row">
+        <label>激进程度</label>
+        <el-select v-model="batch.params.level" size="mini" style="width:170px">
+          <el-option v-for="lv in levelList" :key="lv.name" :label="lv.name + '（' + lv.short + '）'" :value="lv.name"></el-option>
+        </el-select>
+        <label>按单/BOM 口径</label>
+        <el-select v-model="batch.params.bomBasis" size="mini" style="width:230px">
+          <el-option label="只剔除带销售订单号的批次" value="attr"></el-option>
+          <el-option label="销售订单批次 + 计划内领料都剔除" value="attr+planned"></el-option>
+          <el-option label="不剔除" value="none"></el-option>
+        </el-select>
+        <el-button size="mini" type="primary" :loading="batch.running" :disabled="!api.ok" @click="runBatch">重新试算</el-button>
+        <el-button size="mini" :disabled="!results" @click="exportResults">导出结果 CSV</el-button>
+      </div>
+      <p class="plugin-note" style="margin:4px 0 0">{{ levelDesc(batch.params.level) }}</p>
+      <h4>四档激进程度对比 <span class="plugin-note">（每档都整批重算一遍；首次约 15 秒）</span>
+        <el-button type="text" size="mini" icon="el-icon-data-line" style="margin-left:6px" @click="openCharts()">在曲线看板里看</el-button></h4>
+      <div v-loading="levels.loading" style="min-height:40px">
+        <table class="sum-table" v-if="levels.data">
+          <tr><th>激进程度</th><th>对照现行值：降 / 持平 / 升</th><th>其中模型算高、保持现行</th><th>对照实际自由在库：在库变化中位数</th><th>按规则执行时缺货天数/年（中位数）</th><th></th></tr>
+          <tr v-for="lv in levels.data.levels" :key="lv.name" :class="{ 'lv-cur': results && results.params.level === lv.name }">
+            <td><b>{{ lv.name }}</b> <span class="plugin-note">P{{ Math.round(lv.serviceLevel * 100) }}</span></td>
+            <td><span class="down">{{ lv.down }}</span> / {{ lv.same }} / <span class="up">{{ lv.up }}</span></td>
+            <td>{{ lv.hold }}</td>
+            <td :class="lv.medianChange < 0 ? 'down' : 'up'">{{ lv.medianChange > 0 ? '+' : '' }}{{ lv.medianChange }}%</td>
+            <td>{{ lv.simShortMedian }} <span class="plugin-note">（现行模拟 {{ lv.simCurShortMedian }}）</span></td>
+            <td><el-button v-if="!(results && results.params.level === lv.name)" type="text" size="mini" :disabled="!api.ok || batch.running" @click="batch.params.level = lv.name; runBatch()">用这一档</el-button><span v-else class="plugin-note">当前</span></td>
+          </tr>
+        </table>
+        <p v-else-if="levels.error" class="muted">{{ levels.error }}</p>
+      </div>
+      <template v-if="results">
+        <h4>数据窗口 {{ results.window.start }} ~ {{ results.window.end }}（GWMS5 {{ results.window.days - 1 }} 天，部分物料接上了 SAP 历史）</h4>
+        <div class="sum-grid">
+          <div class="kpi"><div class="k">参与试算物料</div><div class="v">{{ results.summary.total }}</div><div class="s">已删除的不算</div></div>
+          <div class="kpi"><div class="k">给出建议</div><div class="v">{{ results.summary.status.ok || 0 }}</div><div class="s">另有单位不一致 {{ results.summary.status.unit_mismatch || 0 }}</div></div>
+          <div class="kpi"><div class="k">样本不足 / 无数据</div><div class="v">{{ (results.summary.status.insufficient || 0) + ' / ' + (results.summary.status.no_data || 0) }}</div><div class="s">保留现行值</div></div>
+          <div class="kpi"><div class="k">零库存（不适用）</div><div class="v">{{ results.summary.status.not_applicable || 0 }}</div><div class="s">按单采购</div></div>
+          <div class="kpi"><div class="k">报警：偏差大 / 中</div><div class="v bad">{{ (results.summary.alert.high || 0) + ' / ' + (results.summary.alert.medium || 0) }}</div><div class="s">需人工确认</div></div>
+          <div class="kpi"><div class="k">对照实际在库：建议更低</div><div class="v down">{{ results.summary.lowerThanActual }} / {{ results.summary.withActual }}</div><div class="s">在库变化中位数 {{ results.summary.medianSavingActual == null ? '—' : pct(-results.summary.medianSavingActual, true) }}</div></div>
+          <div class="kpi"><div class="k">对照现行值：降 / 持平 / 升</div><div class="v"><span class="down">{{ results.summary.suggestDown }}</span> / {{ results.summary.suggestSame == null ? '—' : results.summary.suggestSame }} / <span class="up">{{ results.summary.suggestUp }}</span></div><div class="s">共 {{ results.summary.comparable }} 个可比{{ results.summary.hold ? '，' + results.summary.hold + ' 个模型算高但保持现行' : '' }}</div></div>
+          <div class="kpi"><div class="k">用时</div><div class="v">{{ results.seconds }} 秒</div><div class="s">{{ results.builtAt.replace('T', ' ') }}</div></div>
+        </div>
+        <h4>按交货期来源看（对照实际自由在库）</h4>
+        <table class="sum-table">
+          <tr><th>交货期来源</th><th>物料数</th><th>建议规则在库更低</th><th>在库变化中位数</th></tr>
+          <tr v-for="(v, k) in results.summary.byLeadSrc" :key="k"><td>{{ k }}</td><td>{{ v.n }}</td><td>{{ v.lowerThanActual }}</td><td>{{ pct(-v.medianSavingActual, true) }}</td></tr>
+        </table>
+        <p class="plugin-note" style="margin:6px 0 0">交货期为「默认值」的物料没有交货期数据（稳健档按 30 天，其他档按 10 天），可信度标为「低」。补上 SAP 实际交货天数后再看。</p>
+        <h4>按类目</h4>
+        <table class="sum-table">
+          <tr><th>类目</th><th>物料数</th><th>给出建议</th><th>偏差大</th><th>偏差中</th></tr>
+          <tr v-for="(v, k) in results.summary.byType" :key="k"><td>{{ k }}</td><td>{{ v.total }}</td><td>{{ v.ok }}</td><td>{{ v.high }}</td><td>{{ v.medium }}</td></tr>
+        </table>
+      </template>
+      <p v-else class="muted">还没有试算结果。</p>
+    </div>
+  </el-dialog>
+
+  <el-drawer :visible.sync="detail.visible" size="66%" :with-header="true" :title="detail.row ? (detail.row.no + '  ' + detail.row.name) : ''" @opened="drawChart" @closed="disposeChart">
+    <div class="detail" v-if="detail.row" v-loading="detail.loading">
+      <div class="param-row">
+        <label>激进程度</label>
+        <el-select v-model="detail.params.level" size="mini" style="width:170px" :disabled="!api.ok">
+          <el-option v-for="lv in levelList" :key="lv.name" :label="lv.name + '（' + lv.short + '）'" :value="lv.name"></el-option>
+        </el-select>
+        <label>按单/BOM 口径</label>
+        <el-select v-model="detail.params.bomBasis" size="mini" style="width:220px" :disabled="!api.ok">
+          <el-option label="只剔除带销售订单号的批次" value="attr"></el-option>
+          <el-option label="销售订单批次 + 计划内领料都剔除" value="attr+planned"></el-option>
+          <el-option label="不剔除" value="none"></el-option>
+        </el-select>
+        <label>交货期（天）</label>
+        <el-input-number v-model="detail.params.leadOverride" size="mini" :min="0" :max="365" :controls="false" style="width:80px" placeholder="自动" :disabled="!api.ok"></el-input-number>
+        <el-button size="mini" type="primary" :disabled="!api.ok" @click="loadDetail">重新计算</el-button>
+      </div>
+      <template v-if="detail.res">
+        <div style="margin-top:10px">
+          <el-tag size="mini" :type="statusTagType(detail.res.status)">{{ statusText(detail.res) }}</el-tag>
+          <el-tag v-if="detail.res.alert === 'high'" size="mini" type="danger">偏差大，需人工确认</el-tag>
+          <el-tag v-else-if="detail.res.alert === 'medium'" size="mini" type="warning">偏差中</el-tag>
+          <el-tag v-if="detail.res.conf" size="mini" type="info">可信度 {{ detail.res.conf }}</el-tag>
+          <el-tag size="mini" type="info">{{ detail.res.mtypeName }}</el-tag>
+        </div>
+        <div class="kpis" v-if="detail.res.ss != null">
+          <div class="kpi"><div class="k">现行 安全 / 最高</div><div class="v">{{ fmt(detail.res.cur) }} / {{ fmt(detail.res.curMax) }}</div><div class="s">{{ detail.res.unit }}</div></div>
+          <div class="kpi"><div class="k">建议 安全 / 最高</div><div class="v" :class="dirClass(detail.res)">{{ fmt(detail.res.ss) }} / {{ fmt(detail.res.max) }}</div><div class="s">{{ detail.res.hold ? ('模型值 ' + fmt(detail.res.rawSs) + '，保持现行') : (detail.res.dev == null ? '不与现行值比较' : ('偏差 ' + pct(detail.res.dev, true))) }}</div></div>
+          <div class="kpi"><div class="k">交货期</div><div class="v">{{ fmt(detail.res.lead) }} 天</div><div class="s">{{ detail.res.leadSrc }}{{ detail.res.leadN ? '（' + detail.res.leadN + ' 个样本）' : '' }}</div></div>
+          <div class="kpi"><div class="k">日均需求</div><div class="v">{{ fmt(detail.res.mu) }}</div><div class="s">{{ detail.res.nzDays }} / {{ detail.res.historyDays }} 天有出库</div></div>
+          <div class="kpi"><div class="k">平均在库：实际 → 建议</div><div class="v" :class="detail.res.savingActual > 0 ? 'down' : (detail.res.savingActual < 0 ? 'up' : '')">{{ detail.res.actual ? fmt(detail.res.actual.avgFree) : '—' }} → {{ detail.res.simSug ? fmt(detail.res.simSug.avg) : '—' }}</div><div class="s">{{ detail.res.savingActual == null ? '无实际基线' : pct(-detail.res.savingActual, true) }}（自由库存）</div></div>
+          <div class="kpi"><div class="k">平均在库：按现行值模拟</div><div class="v">{{ detail.res.simCur ? fmt(detail.res.simCur.avg) : '—' }}</div><div class="s">现场实际补货多于这个规则</div></div>
+          <div class="kpi"><div class="k">缺货天数/年</div><div class="v">{{ detail.res.simSug ? Math.round(detail.res.simSug.stockoutDays) : '—' }}</div><div class="s">实际 {{ detail.res.actual ? Math.round(detail.res.actual.stockoutDays) : '—' }} · 现行模拟 {{ detail.res.simCur ? Math.round(detail.res.simCur.stockoutDays) : '—' }}</div></div>
+          <div class="kpi"><div class="k">按单/BOM 出库占比</div><div class="v">{{ pct(detail.res.bomShare) }}</div><div class="s">已剔除，不参与优化</div></div>
+        </div>
+        <h4>为什么这么建议 <el-button type="text" size="mini" icon="el-icon-data-line" style="margin-left:8px" @click="openCharts(detail.row.no)">在曲线看板里看</el-button></h4>
+        <div class="why">{{ detail.res.why }}</div>
+        <div v-for="n in (detail.res.notes || [])" :key="n" style="margin-top:6px"><el-alert :title="n" type="warning" :closable="false" show-icon></el-alert></div>
+        <template v-if="api.ok && detail.res.series">
+          <h4>在库与出库（历史倒推 + 未来 {{ detail.res.series.projDates ? detail.res.series.projDates.length : 0 }} 天预测）</h4>
+          <div ref="chart" class="chart"></div>
+        </template>
+        <h4>人工确认</h4>
+        <div v-if="!api.ok" class="muted">需要启动 server.py 才能保存。</div>
+        <template v-else>
+          <div class="param-row">
+            <el-radio-group v-model="fb.decision" size="mini">
+              <el-radio-button label="accept" :disabled="detail.res.ss == null">采纳建议</el-radio-button>
+              <el-radio-button label="modify">改为人工值</el-radio-button>
+              <el-radio-button label="reject">保留现行值</el-radio-button>
+            </el-radio-group>
+            <template v-if="fb.decision === 'modify'">
+              <label>安全库存</label><el-input-number v-model="fb.final" size="mini" :min="0" :controls="false" style="width:90px"></el-input-number>
+              <label>最高库存</label><el-input-number v-model="fb.finalMax" size="mini" :min="0" :controls="false" style="width:90px"></el-input-number>
+            </template>
+          </div>
+          <div class="param-row" style="margin-top:6px">
+            <el-input v-model="fb.reason" size="mini" placeholder="理由（例如：下月有大订单 / 供应商交期变长）" style="flex:1;min-width:240px"></el-input>
+            <el-input v-model="fb.user" size="mini" placeholder="确认人" style="width:100px"></el-input>
+            <el-button size="mini" type="primary" :loading="fb.saving" @click="saveFeedback">保存</el-button>
+          </div>
+          <p class="plugin-note" style="margin:4px 0 0">采纳或改值会同步改掉本页（模拟 f-1）里的安全库存 / 最高库存；每条确认都记进 data/feedback.jsonl，作为以后调参的样本。</p>
+          <div class="fb-list" v-if="fb.list.length">
+            <div class="fb-item" v-for="f in fb.list" :key="f.time">{{ f.time.replace('T', ' ') }} · {{ f.user || '未署名' }} · {{ f.decisionText }}：{{ fmt(f.cur) }} → {{ fmt(f.final) }}{{ f.reason ? '（' + f.reason + '）' : '' }}</div>
+          </div>
+        </template>
+        <h4>问 AI 助手</h4>
+        <div v-if="!api.ok" class="muted">需要启动 server.py。</div>
+        <template v-else>
+          <div class="chat" ref="chat">
+            <div v-for="(t, i) in ai.history" :key="i"><div class="q">问：{{ t.q }}</div><div class="a">{{ t.a }}</div></div>
+          </div>
+          <div class="param-row">
+            <el-input v-model="ai.q" size="mini" placeholder="比如：为什么建议上调？现行值能不能再降？" style="flex:1;min-width:240px" @keyup.enter.native="askAi"></el-input>
+            <el-button size="mini" type="primary" :loading="ai.loading" @click="askAi">提问</el-button>
+          </div>
+          <p class="plugin-note" style="margin:4px 0 0;color:#f56c6c" v-if="ai.error">{{ ai.error }}</p>
+          <p class="plugin-note" style="margin:4px 0 0" v-if="!api.ai">服务端没有配置 AI 密钥（ANTHROPIC_API_KEY），提问会失败。</p>
+        </template>
+      </template>
+    </div>
+  </el-drawer>
+
+  <el-dialog title="上传" :visible.sync="importVisible" width="460px" :close-on-click-modal="false">
+    <el-form label-width="100px" size="small">
+      <el-form-item label="类型">
+        <el-select v-model="importType" placeholder="请选择" style="width:100%">
+          <el-option label="物料" value="0"></el-option>
+          <el-option label="备货倍数" value="1"></el-option>
+        </el-select>
+      </el-form-item>
+      <el-form-item label="导入文件">
+        <input type="file" accept=".csv,.xlsx,.xls" @change="onFile">
+      </el-form-item>
+    </el-form>
+    <span slot="footer">
+      <el-button size="small" @click="importVisible = false">取消</el-button>
+      <el-button size="small" type="primary" @click="doImport">确定</el-button>
+    </span>
+  </el-dialog>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/vue@2.7.16/dist/vue.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/element-ui@2.15.14/lib/index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/element-ui@2.15.14/lib/umd/locale/zh-CN.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+<script>
+ELEMENT.locale(ELEMENT.lang.zhCN);
+var STORE_KEY = "safty-material-sim-v2";
+var DATA_SOURCE = "live-all-mtypes-2026-11-10";
+var USER = "本地用户";
+
+function nowText() {
+  var d = new Date();
+  var p = function (n) { return (n < 10 ? "0" : "") + n; };
+  return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
+}
+function loadStore() {
+  try {
+    var raw = JSON.parse(localStorage.getItem(STORE_KEY) || "");
+    if (raw && Array.isArray(raw.materials) && Array.isArray(raw.rates)) return raw;
+  } catch (e) {}
+  return { seq: 1, materials: [], rates: [] };
+}
+function blankForm(mtype) {
+  return { id: null, plantno: "", no: "", name: "", mtype: mtype || "1", hquantity: 0, lquantity: 0, unit: "", pquantity: 0, rno: "", rname: "", pcycle: "", multip: "" };
+}
+function normalizeMaterial(row) {
+  var copy = Object.assign({}, row);
+  copy.state = String(row.status == null ? "0" : row.status);
+  return copy;
+}
+
+new Vue({
+  el: "#app",
+  data: function () {
+    var store = loadStore();
+    return {
+      companies: [
+        { companyId: "1000", name: "卫华" },
+        { companyId: "1100", name: "纽科伦" },
+        { companyId: "1200", name: "蒲瑞" }
+      ],
+      menus: [
+        { id: "home", name: "首页", home: true },
+        { id: "direct", name: "直送管理" },
+        { id: "arrival", name: "到货管理" },
+        { id: "labor", name: "劳保管理" },
+        { id: "return", name: "退料管理" },
+        { id: "declare", name: "物资申报" },
+        { id: "stockcfg", name: "备货配置" },
+        { id: "zero", name: "零库存管理", mtype: "0" },
+        { id: "safty", name: "生产类安全库存", mtype: "1" },
+        { id: "plate", name: "板材管理", mtype: "3" },
+        { id: "nonsafety", name: "非生产类安全库存", mtype: "2" },
+        { id: "special", name: "非标物资", mtype: "4" },
+        { id: "section", name: "型材管理", mtype: "5" },
+        { id: "ship", name: "发车安全库存", mtype: "7" },
+        { id: "paint", name: "油漆类物资", mtype: "8" },
+        { id: "apply", name: "申报管理" },
+        { id: "applybill", name: "申报领料单" },
+        { id: "applydetail", name: "申报领料明细" },
+        { id: "tools", name: "工具管理" }
+      ],
+      activeMenu: "safty",
+      tabTitle: "生产类安全库存",
+      view: "list",
+      store: store,
+      query: { mtype: "1", plantno: "1000", state: "", no: "", name: "", alert: "" },
+      applied: { mtype: "1", plantno: "1000", state: "", no: "", name: "", alert: "" },
+      api: { ok: false, ai: false },
+      results: null,
+      resultIndex: null,
+      batch: { visible: false, running: false, params: { level: "激进", bomBasis: "attr" } },
+      levels: { loading: false, data: null, error: "" },
+      levelList: [
+        { name: "稳健", short: "P90，可上调", desc: "稳健：服务水平 P90，缺交货期按 30 天，模型算高就建议上调。缺货最少，但大部分物料会建议上调。" },
+        { name: "均衡", short: "P85，断货才升", desc: "均衡：服务水平 P85，缺交货期按 10 天（f-1 采购周期中位数），近两个月实际断货过才上调，否则保持现行。" },
+        { name: "激进", short: "P75，断货才升", desc: "激进：服务水平 P75，缺交货期按 10 天，近两个月实际断货过才上调，否则保持现行。" },
+        { name: "极限", short: "P60，只降不升", desc: "极限：服务水平 P60，缺交货期按 10 天，只降不升。按规则执行时缺货明显增多，只适合先挑出能降的物料。" }
+      ],
+      detail: { visible: false, loading: false, row: null, res: null, params: { level: "激进", bomBasis: "attr", leadOverride: undefined } },
+      fb: { decision: "accept", final: undefined, finalMax: undefined, reason: "", user: "", saving: false, list: [] },
+      ai: { q: "", loading: false, history: [], error: "" },
+      page: { current: 1, size: 50 },
+      selection: [],
+      current: null,
+      rateSelection: [],
+      formVisible: false,
+      formTitle: "新增物料",
+      form: blankForm(),
+      rules: {
+        plantno: [{ required: true, message: "公司不允许为空", trigger: "change" }],
+        no: [{ required: true, message: "物料编码不允许为空", trigger: "blur" }],
+        name: [{ required: true, message: "物料名称不允许为空", trigger: "blur" }],
+        hquantity: [{ required: true, message: "最高库存不允许为空", trigger: "blur" }],
+        lquantity: [{ required: true, message: "安全库存不允许为空", trigger: "blur" }],
+        unit: [{ required: true, message: "单位不允许为空", trigger: "blur" }]
+      },
+      rateVisible: false,
+      rateTitle: "新增物料规格占比",
+      rateForm: { id: null, materialid: "", name: "", rate: 0 },
+      rateRules: {
+        name: [{ required: true, message: "组合物料编码不允许为空", trigger: "blur" }],
+        rate: [{ required: true, message: "组合物料倍数不允许为空", trigger: "blur" }]
+      },
+      importVisible: false,
+      importType: "",
+      importText: ""
+    };
+  },
+  computed: {
+    homeMenu: function () {
+      return this.menus[0];
+    },
+    searchTags: function () {
+      var tags = [];
+      if (this.applied.plantno) {
+        var plant = this.companies.filter(function (c) { return c.companyId === String(this.applied.plantno); }.bind(this))[0];
+        tags.push({ key: "plantno", text: "工厂:" + (plant ? plant.name : this.applied.plantno) });
+      }
+      if (this.applied.state !== "") tags.push({ key: "state", text: "状态:" + (this.applied.state === "1" ? "已删除" : "正常") });
+      if (this.applied.no) tags.push({ key: "no", text: "物料编码:" + this.applied.no });
+      if (this.applied.name) tags.push({ key: "name", text: "物料名称:" + this.applied.name });
+      if (this.applied.alert) tags.push({ key: "alert", text: "试算报警:" + ({ high: "偏差大", medium: "偏差中", ok: "基本一致", none: "无建议" })[this.applied.alert] });
+      return tags;
+    },
+    filtered: function () {
+      var q = this.applied;
+      var self = this;
+      return this.store.materials.filter(function (row) {
+        if (q.alert && self.alertOf(row) !== q.alert) return false;
+        if (q.mtype !== "" && String(row.mtype) !== String(q.mtype)) return false;
+        if (q.plantno && String(row.plantno) !== String(q.plantno)) return false;
+        if (q.state !== "" && String(row.status) !== String(q.state)) return false;
+        if (q.no && String(row.no).indexOf(q.no) === -1) return false;
+        if (q.name && String(row.name).indexOf(q.name) === -1) return false;
+        return true;
+      });
+    },
+    pageRows: function () {
+      var start = (this.page.current - 1) * this.page.size;
+      return this.filtered.slice(start, start + this.page.size);
+    },
+    currentRates: function () {
+      if (!this.current) return [];
+      var id = this.current.id;
+      return this.store.rates.filter(function (row) { return String(row.materialid) === String(id); });
+    }
+  },
+  methods: {
+    // ---------------- 安全库存试算插件
+    setResults: function (res) {
+      var byId = {}, byCode = {};
+      (res.rows || []).forEach(function (r) {
+        if (r.id) byId[r.id] = Object.freeze(r);
+        if (r.code && !byCode[r.code]) byCode[r.code] = r;
+      });
+      this.resultIndex = Object.freeze({ byId: Object.freeze(byId), byCode: Object.freeze(byCode) });
+      var light = Object.assign({}, res);
+      delete light.rows;
+      this.results = Object.freeze(light);
+      this.batch.params = { level: res.params.level || "稳健", bomBasis: res.params.bomBasis };
+    },
+    loadResults: function () {
+      var self = this;
+      var get = function (url) { return fetch(url).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }); };
+      get("api/status").then(function (st) {
+        self.api = { ok: true, ai: !!st.ai };
+        return get("api/results");
+      }).catch(function () {
+        self.api = { ok: false, ai: false };
+        return get("data/gwms/results.json");
+      }).then(function (res) { if (res && res.rows) self.setResults(res); }).catch(function () {});
+    },
+    resultFor: function (row) {
+      if (!this.resultIndex || !row) return null;
+      return this.resultIndex.byId[row.id] || this.resultIndex.byCode[row.no] || null;
+    },
+    alertOf: function (row) {
+      var r = this.resultFor(row);
+      return r && r.status === "ok" ? r.alert : "none";
+    },
+    fmt: function (x) {
+      if (x === null || x === undefined || x === "") return "—";
+      x = Number(x);
+      if (Math.abs(x) >= 100 || Number.isInteger(x)) return x.toLocaleString("zh-CN", { maximumFractionDigits: 0 });
+      return x.toLocaleString("zh-CN", { maximumFractionDigits: 2 });
+    },
+    pct: function (x, signed) {
+      if (x === null || x === undefined) return "—";
+      var v = Math.round(x * 100);
+      return (signed && v > 0 ? "+" : "") + v + "%";
+    },
+    dirClass: function (r, row) {
+      if (!r || r.ss == null) return "";
+      var cur = row ? Number(row.lquantity) || 0 : r.cur;
+      if (!cur) return "up";
+      if (Math.abs(r.ss - cur) / cur < 0.005) return "same";
+      return r.ss > cur ? "up" : "down";
+    },
+    statusShort: function (r) {
+      if (!r) return "—";
+      return ({ ok: "", not_applicable: "不适用", insufficient: "样本少", no_data: "无数据", unit_mismatch: "单位不符", error: "出错" })[r.status] || r.status;
+    },
+    statusText: function (r) {
+      if (!r) return "";
+      return ({ ok: "已给出建议", not_applicable: "零库存管理，不适用", insufficient: "样本不足，保留现行值", no_data: "近两个月无出入库", unit_mismatch: "单位不一致，仅供参考", error: "计算出错" })[r.status] || r.status;
+    },
+    statusTagType: function (s) {
+      return ({ ok: "success", unit_mismatch: "warning", error: "danger" })[s] || "info";
+    },
+    openBatch: function () { this.batch.visible = true; this.loadLevels(); },
+    openCharts: function (code) { window.open("charts.html" + (code ? "?code=" + encodeURIComponent(code) : ""), "_blank"); },
+    levelDesc: function (name) {
+      var lv = this.levelList.filter(function (l) { return l.name === name; })[0];
+      return lv ? lv.desc : "";
+    },
+    loadLevels: function () {
+      var self = this;
+      if (this.levels.data || this.levels.loading) return;
+      this.levels.loading = true;
+      var live = this.api.ok ? "api/levels?bomBasis=" + encodeURIComponent(this.batch.params.bomBasis || "attr") : "";
+      var load = function (url) {
+        return fetch(url).then(function (r) {
+          if (!r.ok) throw new Error(String(r.status));
+          return r.json();
+        });
+      };
+      (live ? load(live) : Promise.reject()).catch(function () { return load("data/gwms/curves-levels.json"); })
+        .then(function (res) { if (res.error) throw new Error(res.error); self.levels.data = Object.freeze(res); })
+        .catch(function (e) { self.levels.error = "对比没算出来：" + e.message; })
+        .then(function () { self.levels.loading = false; });
+    },
+    runBatch: function () {
+      var self = this;
+      this.batch.running = true;
+      fetch("api/batch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(this.batch.params) })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          if (res.error) throw new Error(res.error);
+          return fetch("api/results").then(function (r) { return r.json(); });
+        })
+        .then(function (res) { self.setResults(res); self.$message.success("试算完成，用时 " + res.seconds + " 秒"); })
+        .catch(function (e) { self.$message.error("试算失败：" + e.message); })
+        .then(function () { self.batch.running = false; });
+    },
+    exportResults: function () {
+      var idx = this.resultIndex;
+      if (!idx) return;
+      var head = ["物料编码", "物料名称", "类目", "单位", "状态", "现行安全库存", "现行最高库存", "建议安全库存", "模型原始值", "保持现行原因", "建议最高库存", "偏差", "报警", "可信度", "交货期", "交货期来源", "日均需求", "实际平均自由在库", "建议规则模拟在库", "说明"];
+      var self = this;
+      var lines = [head.join(",")];
+      Object.keys(idx.byId).forEach(function (id) {
+        var r = idx.byId[id];
+        var cells = [r.code, r.name, r.mtypeName, r.unit, self.statusText(r), r.cur, r.curMax, r.ss, r.rawSs, r.hold || "", r.max, r.dev == null ? "" : self.pct(r.dev, true),
+          ({ high: "偏差大", medium: "偏差中", ok: "基本一致" })[r.alert] || "", r.conf || "", r.lead, r.leadSrc, r.mu,
+          r.actual ? r.actual.avgFree : "", r.simSug ? r.simSug.avg : "", r.why];
+        lines.push(cells.map(function (c) { c = c == null ? "" : String(c); return /[",\n]/.test(c) ? '"' + c.replace(/"/g, '""') + '"' : c; }).join(","));
+      });
+      var blob = new Blob(["\ufeff" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = "安全库存试算_" + this.results.builtAt.slice(0, 10) + ".csv";
+      a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+    },
+    openDetail: function (row) {
+      this.detail.row = row;
+      this.detail.res = null;
+      this.detail.params = { level: this.results && this.results.params.level || "激进", bomBasis: this.results ? this.results.params.bomBasis : "attr", leadOverride: undefined };
+      this.fb = { decision: "accept", final: undefined, finalMax: undefined, reason: "", user: this.fb.user, saving: false, list: [] };
+      this.ai = { q: "", loading: false, history: [], error: "" };
+      this.detail.visible = true;
+      this.loadDetail();
+    },
+    rowPayload: function () {
+      var r = this.detail.row;
+      return { id: r.id, no: r.no, name: r.name, unit: r.unit, mtype: r.mtype, lquantity: Number(r.lquantity) || 0, hquantity: Number(r.hquantity) || 0, pquantity: Number(r.pquantity) || 0, pcycle: r.pcycle };
+    },
+    detailParams: function () {
+      var p = Object.assign({}, this.detail.params);
+      if (!p.leadOverride) delete p.leadOverride;
+      return p;
+    },
+    loadDetail: function () {
+      var self = this;
+      if (!this.api.ok) {
+        var r = this.resultFor(this.detail.row);
+        this.detail.res = r || { status: "no_data", why: "没有这个物料的试算结果。" };
+        this.prefillFeedback();
+        return;
+      }
+      this.detail.loading = true;
+      fetch("api/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ row: this.rowPayload(), params: this.detailParams() }) })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          if (res.error) throw new Error(res.error);
+          self.detail.res = res;
+          self.prefillFeedback();
+          self.$nextTick(self.drawChart);
+        })
+        .catch(function (e) { self.$message.error("试算失败：" + e.message); })
+        .then(function () { self.detail.loading = false; });
+      fetch("api/feedback?code=" + encodeURIComponent(this.detail.row.no)).then(function (r) { return r.json(); })
+        .then(function (res) { self.fb.list = (res.rows || []).reverse(); }).catch(function () {});
+    },
+    prefillFeedback: function () {
+      var r = this.detail.res;
+      this.fb.decision = r && r.ss != null ? "accept" : "reject";
+      this.fb.final = r && r.ss != null ? r.ss : Number(this.detail.row.lquantity) || 0;
+      this.fb.finalMax = r && r.max != null ? r.max : Number(this.detail.row.hquantity) || 0;
+    },
+    saveFeedback: function () {
+      var self = this, r = this.detail.res, row = this.detail.row, d = this.fb.decision;
+      var cur = Number(row.lquantity) || 0, curMax = Number(row.hquantity) || 0;
+      var fin = d === "accept" ? r.ss : (d === "modify" ? this.fb.final : cur);
+      var finMax = d === "accept" ? r.max : (d === "modify" ? this.fb.finalMax : curMax);
+      if (d === "modify" && (fin == null || finMax == null || finMax < fin)) { this.$message.warning("请填写人工值，最高库存不能低于安全库存"); return; }
+      if ((d !== "accept") && !this.fb.reason.trim() && r.alert === "high") { this.$message.warning("偏差大的物料不采纳建议时，请写一下理由"); return; }
+      this.fb.saving = true;
+      var body = { code: row.no, name: row.name, decision: d, cur: cur, curMax: curMax, suggested: r.ss, suggestedMax: r.max, final: fin, finalMax: finMax,
+        reason: this.fb.reason, user: this.fb.user, params: this.detailParams(), alert: r.alert, conf: r.conf, leadSrc: r.leadSrc };
+      fetch("api/feedback", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+        .then(function (res) { return res.json(); })
+        .then(function (rec) {
+          if (rec.error) throw new Error(rec.error);
+          self.fb.list.unshift(rec);
+          if (d !== "reject") {
+            var target = self.store.materials.filter(function (m) { return m.id === row.id; })[0];
+            if (target) {
+              target.lquantity = fin;
+              target.hquantity = finMax;
+              target.muser = self.fb.user || USER;
+              target.mtime = nowText();
+              self.persist();
+            }
+          }
+          self.fb.reason = "";
+          self.$message.success(d === "reject" ? "已记录：保留现行值" : "已更新安全库存并记录");
+        })
+        .catch(function (e) { self.$message.error("保存失败：" + e.message); })
+        .then(function () { self.fb.saving = false; });
+    },
+    askAi: function () {
+      var self = this, q = this.ai.q.trim();
+      if (!q || this.ai.loading) return;
+      this.ai.loading = true;
+      this.ai.error = "";
+      fetch("api/ask", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ row: this.rowPayload(), params: this.detailParams(), question: q, history: this.ai.history }) })
+        .then(function (r) { return r.json(); })
+        .then(function (res) {
+          if (res.error) throw new Error(res.error);
+          self.ai.history.push({ q: q, a: res.answer });
+          self.ai.q = "";
+          self.$nextTick(function () { var el = self.$refs.chat; if (el) el.scrollTop = el.scrollHeight; });
+        })
+        .catch(function (e) { self.ai.error = "AI 助手没答上来：" + e.message; })
+        .then(function () { self.ai.loading = false; });
+    },
+    disposeChart: function () {
+      if (this._chart) { this._chart.dispose(); this._chart = null; }
+    },
+    drawChart: function () {
+      var res = this.detail.res, el = this.$refs.chart;
+      if (!res || !res.series || !el || !window.echarts || !this.detail.visible) return;
+      if (this._chart && this._chart.getDom() !== el) this.disposeChart();
+      var chart = this._chart || (this._chart = echarts.init(el));
+      var s = res.series, proj = s.projDates || [];
+      var x = s.dates.concat(proj);
+      var pad = function (arr, before, after) {
+        var out = [];
+        for (var i = 0; i < before; i++) out.push(null);
+        out = out.concat(arr || []);
+        for (var j = 0; j < after; j++) out.push(null);
+        return out;
+      };
+      var n = s.dates.length, m = proj.length;
+      var series = [
+        { name: "实际在库（总）", type: "line", data: pad(s.onhandTotal, 0, m), showSymbol: false, lineStyle: { width: 1, type: "dashed" }, color: "#909399" },
+        { name: "实际自由在库", type: "line", data: pad(s.onhandFree, 0, m), showSymbol: false, lineStyle: { width: 2 }, color: "#409eff" },
+        { name: "需由安全库存覆盖的出库", type: "bar", stack: "out", yAxisIndex: 1, data: pad(s.demandCover, 0, m), color: "#f2a65a", barMaxWidth: 8 },
+        { name: "按单/BOM 出库（已剔除）", type: "bar", stack: "out", yAxisIndex: 1, data: pad(s.demandBom, 0, m), color: "#d3d6db", barMaxWidth: 8 }
+      ];
+      var lines = [], curHigher = res.ss == null || res.cur >= res.ss;
+      if (res.cur > 0) lines.push({ yAxis: res.cur, name: "现行安全库存", lineStyle: { color: "#909399" }, label: { formatter: "现行 " + this.fmt(res.cur), color: "#909399", position: curHigher ? "insideEndTop" : "insideEndBottom" } });
+      if (res.ss != null) lines.push({ yAxis: res.ss, name: "建议安全库存", lineStyle: { color: "#67c23a" }, label: { formatter: "建议 " + this.fmt(res.ss), color: "#67c23a", position: curHigher ? "insideEndBottom" : "insideEndTop" } });
+      series[1].markLine = { symbol: "none", silent: true, data: lines, lineStyle: { type: "dotted", width: 1.5 } };
+      if (s.projSug) {
+        var lo = pad(s.projSug.p10, n, 0), band = pad(s.projSug.p90.map(function (v, i) { return v - s.projSug.p10[i]; }), n, 0);
+        series.push({ name: "建议规则 P10", type: "line", stack: "band", data: lo, showSymbol: false, lineStyle: { opacity: 0 }, color: "#67c23a", tooltip: { show: false } });
+        series.push({ name: "建议规则 P10–P90", type: "line", stack: "band", data: band, showSymbol: false, lineStyle: { opacity: 0 }, areaStyle: { color: "rgba(103,194,58,.15)" }, color: "#67c23a", tooltip: { show: false } });
+        series.push({ name: "建议规则预测（中位数）", type: "line", data: pad(s.projSug.p50, n, 0), showSymbol: false, lineStyle: { width: 2 }, color: "#67c23a" });
+      }
+      if (s.projCur) series.push({ name: "现行规则预测（中位数）", type: "line", data: pad(s.projCur.p50, n, 0), showSymbol: false, lineStyle: { width: 1.5, type: "dashed" }, color: "#e6a23c" });
+      chart.setOption({
+        animation: false,
+        grid: { left: 56, right: 56, top: 40, bottom: 56 },
+        legend: { top: 0, type: "scroll", textStyle: { fontSize: 11 }, data: series.filter(function (x) { return x.name.indexOf("P10") === -1 || x.name.indexOf("–") !== -1; }).map(function (x) { return x.name; }) },
+        tooltip: { trigger: "axis", valueFormatter: function (v) { return v == null ? "—" : (Math.round(v * 100) / 100).toLocaleString(); } },
+        xAxis: { type: "category", data: x, axisLabel: { fontSize: 10 }, axisTick: { alignWithLabel: true },
+          axisPointer: { show: true } },
+        yAxis: [{ type: "value", name: "在库 " + (res.unit || ""), nameTextStyle: { fontSize: 11 }, splitLine: { lineStyle: { color: "#f0f2f5" } } },
+                { type: "value", name: "日出库", nameTextStyle: { fontSize: 11 }, splitLine: { show: false } }],
+        dataZoom: [{ type: "slider", height: 16, bottom: 8 }],
+        series: series
+      }, true);
+      chart.resize();
+    },
+    persist: function () { localStorage.setItem(STORE_KEY, JSON.stringify(this.store)); },
+    indexMethod: function (index) {
+      return (this.page.current - 1) * this.page.size + index + 1;
+    },
+    openMenu: function (item) {
+      this.activeMenu = item.id;
+      if (item.home) {
+        this.view = "home";
+        return;
+      }
+      this.view = "list";
+      this.tabTitle = item.name;
+      this.query.mtype = item.mtype == null ? "__none" : String(item.mtype);
+      this.current = null;
+      this.selection = [];
+      this.search();
+    },
+    search: function () {
+      this.applied = Object.assign({}, this.query);
+      this.page.current = 1;
+    },
+    resetSearch: function () {
+      this.query = { mtype: this.query.mtype, plantno: "1000", state: "", no: "", name: "", alert: "" };
+      this.search();
+    },
+    onSize: function (size) { this.page.size = size; this.page.current = 1; },
+    onPage: function (current) { this.page.current = current; },
+    onSelect: function (rows) { this.selection = rows; },
+    onRateSelect: function (rows) { this.rateSelection = rows; },
+    onRowClick: function (row) {
+      this.current = row;
+      this.rateSelection = [];
+      this.$refs.mainTable.clearSelection();
+      this.$refs.mainTable.toggleRowSelection(row, true);
+    },
+    openAdd: function () {
+      this.formTitle = "新增物料";
+      this.form = blankForm(this.applied.mtype || "1");
+      this.formVisible = true;
+      this.$nextTick(function () { this.$refs.form && this.$refs.form.clearValidate(); }.bind(this));
+    },
+    openEdit: function (row) {
+      if (!row) return;
+      if (String(row.status) === "1") { this.$message.error("不允许修改已删除数据!"); return; }
+      this.formTitle = "修改物料";
+      this.form = Object.assign(blankForm(), row);
+      this.formVisible = true;
+    },
+    saveForm: function () {
+      var self = this;
+      this.$refs.form.validate(function (ok) {
+        if (!ok) return;
+        var stamp = nowText();
+        if (self.form.id == null) {
+          var row = Object.assign({}, self.form, {
+            id: self.store.seq++,
+            mtype: self.form.mtype || self.applied.mtype || "1",
+            status: 0,
+            state: "0",
+            cuser: USER,
+            ctime: stamp,
+            muser: "",
+            mtime: "",
+            duser: "",
+            dtime: ""
+          });
+          self.store.materials.unshift(row);
+        } else {
+          var target = self.store.materials.filter(function (item) { return item.id === self.form.id; })[0];
+          if (!target) return;
+          ["plantno", "no", "name", "rno", "rname", "unit", "hquantity", "lquantity", "pquantity", "pcycle", "multip"].forEach(function (key) {
+            target[key] = self.form[key];
+          });
+          target.muser = USER;
+          target.mtime = stamp;
+        }
+        self.persist();
+        self.formVisible = false;
+        self.$message.success("已保存到本地模拟库");
+      });
+    },
+    removeRows: function (rows) {
+      var self = this;
+      if (!rows || !rows.length) { this.$message.warning("请选择需要删除箱体的行项目"); return; }
+      for (var i = 0; i < rows.length; i++) {
+        if (String(rows[i].status) === "1") {
+          this.$message.error("选中行第【" + (i + 1) + "】行已删除，不允许删除");
+          return;
+        }
+      }
+      this.$confirm("是否删除？", "提示", { confirmButtonText: "确认", cancelButtonText: "取消", type: "warning" }).then(function () {
+        var stamp = nowText();
+        rows.forEach(function (row) {
+          row.status = 1;
+          row.state = "1";
+          row.duser = USER;
+          row.dtime = stamp;
+        });
+        self.persist();
+      }).catch(function () {});
+    },
+    openRate: function (row) {
+      if (!row) return;
+      this.current = row;
+      this.rateTitle = "新增物料规格占比";
+      this.rateForm = { id: null, materialid: row.id, name: "", rate: 0 };
+      this.rateVisible = true;
+    },
+    openRateEdit: function (row) {
+      if (!row) return;
+      if (String(row.status) === "1") { this.$message.error("不允许修改已删除数据!"); return; }
+      this.rateTitle = "修改物料规格占比";
+      this.rateForm = { id: row.id, materialid: row.materialid, name: row.name, rate: row.rate };
+      this.rateVisible = true;
+    },
+    saveRate: function () {
+      var self = this;
+      this.$refs.rateForm.validate(function (ok) {
+        if (!ok) return;
+        var stamp = nowText();
+        if (self.rateForm.id == null) {
+          self.store.rates.unshift({
+            id: self.store.seq++,
+            materialid: self.rateForm.materialid,
+            name: self.rateForm.name,
+            rate: self.rateForm.rate,
+            status: 0,
+            cuser: USER,
+            ctime: stamp,
+            muser: "",
+            mtime: "",
+            duser: "",
+            dtime: ""
+          });
+        } else {
+          var target = self.store.rates.filter(function (item) { return item.id === self.rateForm.id; })[0];
+          if (!target) return;
+          target.name = self.rateForm.name;
+          target.rate = self.rateForm.rate;
+          target.muser = USER;
+          target.mtime = stamp;
+        }
+        self.persist();
+        self.rateVisible = false;
+      });
+    },
+    removeRate: function (rows) {
+      var self = this;
+      var list = Array.isArray(rows) ? rows : [rows];
+      list = list.filter(Boolean);
+      if (!list.length) { this.$message.warning("请选择需要删除的行"); return; }
+      if (list.some(function (row) { return String(row.status) === "1"; })) {
+        this.$message.error("不允许删除已删除数据!");
+        return;
+      }
+      this.$confirm("是否删除？", "提示", { confirmButtonText: "确认", cancelButtonText: "取消", type: "warning" }).then(function () {
+        var stamp = nowText();
+        list.forEach(function (row) {
+          row.status = 1;
+          row.duser = USER;
+          row.dtime = stamp;
+        });
+        self.persist();
+      }).catch(function () {});
+    },
+    download: function (filename, header) {
+      var csv = "\ufeff" + header.join(",") + "\n";
+      var blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      var link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = filename;
+      link.click();
+    },
+    downloadTemplate: function () {
+      this.download("Apply_Material_Safty.csv", ["工厂", "物料编码", "物料名称", "单位", "最高库存", "安全库存", "包装数量", "采购周期", "生产编码", "生产名称"]);
+    },
+    downloadStockTemplate: function () {
+      this.download("Material_Stock.csv", ["物料编码", "备货倍数"]);
+    },
+    onFile: function (event) {
+      var file = event.target.files && event.target.files[0];
+      this.importText = "";
+      if (!file) return;
+      var reader = new FileReader();
+      var self = this;
+      reader.onload = function () { self.importText = String(reader.result || ""); };
+      reader.readAsText(file);
+    },
+    doImport: function () {
+      if (this.importType !== "0" && this.importType !== "1") {
+        this.$message.error("请选择导入类型!");
+        return;
+      }
+      if (!this.importText) { this.$message.error("请选择文件"); return; }
+      var lines = this.importText.replace(/^\ufeff/, "").split(/\r?\n/).filter(function (line) { return line.trim(); });
+      if (lines.length < 2) { this.$message.error("文件里没有数据行"); return; }
+      var stamp = nowText();
+      var added = 0;
+      if (this.importType === "0") {
+        for (var i = 1; i < lines.length; i++) {
+          var cells = lines[i].split(",");
+          if (!cells[1]) continue;
+          this.store.materials.unshift({
+            id: this.store.seq++,
+            plantno: cells[0] || "",
+            no: cells[1] || "",
+            name: cells[2] || "",
+            unit: cells[3] || "",
+            hquantity: cells[4] || 0,
+            lquantity: cells[5] || 0,
+            pquantity: cells[6] || 0,
+            pcycle: cells[7] || "",
+            rno: cells[8] || "",
+            rname: cells[9] || "",
+            multip: "",
+            mtype: this.applied.mtype || "1",
+            status: 0,
+            state: "0",
+            cuser: USER,
+            ctime: stamp,
+            muser: "", mtime: "", duser: "", dtime: ""
+          });
+          added++;
+        }
+      } else {
+        for (var j = 1; j < lines.length; j++) {
+          var pair = lines[j].split(",");
+          var hit = this.store.materials.filter(function (row) { return String(row.no) === String(pair[0]); })[0];
+          if (hit) { hit.multip = pair[1]; hit.muser = USER; hit.mtime = stamp; added++; }
+        }
+      }
+      this.persist();
+      this.importVisible = false;
+      this.$message.success("已导入 " + added + " 行到本地模拟库");
+    }
+  },
+  mounted: function () {
+    var self = this;
+    var jobs = [];
+    this.loadResults();
+    window.addEventListener("resize", function () { if (self._chart) self._chart.resize(); });
+    if (!(this.store.source === DATA_SOURCE && this.store.materials.length)) {
+      jobs.push(fetch("data/materials-all.json").then(function (r) {
+        if (!r.ok) throw new Error(String(r.status));
+        return r.json();
+      }).then(function (rows) {
+        self.store.materials = rows.map(normalizeMaterial);
+        self.store.source = DATA_SOURCE;
+      }));
+    }
+    if (!this.store.rates || !this.store.rates.length) {
+      jobs.push(fetch("data/rates.json").then(function (r) {
+        if (!r.ok) return [];
+        return r.json();
+      }).then(function (rows) {
+        if (Array.isArray(rows) && rows.length) self.store.rates = rows;
+      }));
+    }
+    if (!jobs.length) return;
+    Promise.all(jobs).then(function () { self.persist(); }).catch(function () {
+      self.$message.warning("本地类目数据没有读到，请从模拟目录打开页面");
+    });
+  }
+});
+</script>
+</body>
+</html>

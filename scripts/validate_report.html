@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>安全库存曲线验证</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.5.1/echarts.min.js"></script>
+<style>
+  :root {
+    --bg: #f4f6f9; --surface: #ffffff; --ink: #1f2329; --ink-2: #4e5969; --ink-3: #86909c; --line: #e5e8ef; --grid: #eef0f4;
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --neutral: #6b7280; --band: rgba(42,120,214,.14); --train: rgba(134,144,156,.08);
+    --good: #12805c; --good-bg: #e6f6ef; --warn: #b4540f; --warn-bg: #fdf0e6; --mute-bg: #eef0f4;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #15171b; --surface: #1e2126; --ink: #e8eaed; --ink-2: #b6bcc6; --ink-3: #8a919c; --line: #2e333b; --grid: #2a2e35;
+      --s1: #5b9bea; --s2: #f08a5d; --s3: #3cc795; --neutral: #9aa0a6; --band: rgba(91,155,234,.18); --train: rgba(255,255,255,.04);
+      --good: #4fd1a1; --good-bg: rgba(79,209,161,.12); --warn: #f2a46b; --warn-bg: rgba(242,164,107,.12); --mute-bg: #2a2e35;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #15171b; --surface: #1e2126; --ink: #e8eaed; --ink-2: #b6bcc6; --ink-3: #8a919c; --line: #2e333b; --grid: #2a2e35;
+    --s1: #5b9bea; --s2: #f08a5d; --s3: #3cc795; --neutral: #9aa0a6; --band: rgba(91,155,234,.18); --train: rgba(255,255,255,.04);
+    --good: #4fd1a1; --good-bg: rgba(79,209,161,.12); --warn: #f2a46b; --warn-bg: rgba(242,164,107,.12); --mute-bg: #2a2e35;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.6 -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 24px 16px 60px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 17px; margin: 32px 0 10px; }
+  h3 { font-size: 14px; margin: 0 0 2px; }
+  .sub { color: var(--ink-3); font-size: 12px; }
+  .card { background: var(--surface); border-radius: 10px; padding: 14px 16px; box-shadow: 0 1px 3px rgba(16,24,40,.06); }
+  .method { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-top: 14px; }
+  .method .card b { color: var(--s1); margin-right: 4px; }
+  .method .card p { margin: 4px 0 0; color: var(--ink-2); font-size: 13px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { padding: 9px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  th { color: var(--ink-3); font-weight: 500; font-size: 12px; }
+  th:first-child, td:first-child { text-align: left; }
+  tbody tr { cursor: pointer; }
+  tbody tr:hover, tbody tr.on { background: var(--mute-bg); }
+  .tablewrap { overflow-x: auto; }
+  .tag { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+  .tag.good { color: var(--good); background: var(--good-bg); }
+  .tag.warn { color: var(--warn); background: var(--warn-bg); }
+  .tag.neutral { color: var(--ink-2); background: var(--mute-bg); }
+  .neg { color: var(--good); } .pos { color: var(--warn); }
+  .tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+  .tabs button { border: 1px solid var(--line); background: var(--surface); color: var(--ink-2); border-radius: 16px; padding: 4px 14px; font: inherit; font-size: 13px; cursor: pointer; }
+  .tabs button.on { border-color: var(--s1); color: var(--s1); font-weight: 600; }
+  .kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+  .kpi .k { color: var(--ink-3); font-size: 12px; }
+  .kpi .v { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .kpi .s { color: var(--ink-3); font-size: 12px; }
+  .verdict { border-left: 3px solid var(--s1); margin-bottom: 12px; color: var(--ink-2); }
+  .verdict.good { border-color: var(--good); } .verdict.warn { border-color: var(--warn); } .verdict.neutral { border-color: var(--neutral); }
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .full { grid-column: 1 / -1; }
+  .chart { height: 300px; margin-top: 6px; }
+  .full .chart { height: 360px; }
+  .notes { color: var(--ink-2); font-size: 13px; }
+  .notes li { margin: 4px 0; }
+  .lv td, .lv th { padding: 7px 10px; }
+  .lv tbody tr { cursor: default; }
+  .lv tr.on td { font-weight: 600; }
+  .take { margin-top: 6px; font-size: 13px; color: var(--ink-2); }
+  @media (max-width: 860px) {
+    .method, .grid { grid-template-columns: minmax(0, 1fr); }
+    .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>安全库存曲线验证 · 看计划补货（降库存版）</h1>
+  <div class="sub" id="meta"></div>
+
+  <div class="method">
+    <div class="card"><h3><b>①</b>新规则：看计划补货</h3><p>每天算「库存 + 在途 − 未来一个交货期内计划要发的量」，低于<strong>安全库存</strong>就下单。安全库存只是计划之外的缓冲，所以可以比现行值低很多。</p></div>
+    <div class="card"><h3><b>②</b>过拟合：拿 6 个月真实流水回放</h3><p>真实的每日出库、每次到货的真实交货期，原样走一遍。找出满足率达标、下单次数不多于现场实际到货次数、<strong>平均在库最低</strong>的方案里安全库存最小的那个。</p></div>
+    <div class="card"><h3><b>③</b>防过拟合检查</h3><p>只用前 3 个月拟合，再放到没见过的后 3 个月回放，看满足率掉多少；再每周用截至当天的数据重算一次，画出安全库存曲线。</p></div>
+  </div>
+
+  <h2>结论总览</h2>
+  <div class="card tablewrap">
+    <table>
+      <thead><tr>
+        <th>物料</th><th>现行安全库存</th><th>新安全库存</th><th>降幅</th><th>满足率（缺货天数）</th><th>下单 / 实际到货</th><th>新规则平均在库</th><th>现场实际平均在库</th><th>后 3 个月检验满足率</th><th>结论</th>
+      </tr></thead>
+      <tbody id="ov"></tbody>
+    </table>
+  </div>
+  <div class="take" id="ov-take"></div>
+
+  <h2>逐个物料</h2>
+  <div class="tabs" id="tabs"></div>
+  <div class="kpis" id="kpis"></div>
+  <div class="card verdict" id="verdict"></div>
+  <div class="grid">
+    <div class="card full">
+      <h3>在库曲线：现场实际 vs 按新安全库存补货</h3>
+      <div class="sub">灰色 = 现场实际日终库存；蓝色 = 同样的出库、同样的交货期，按新规则补货的日终库存。横线 = 新安全库存（蓝）和现行安全库存（橙）</div>
+      <div id="c-stock" class="chart"></div>
+    </div>
+    <div class="card">
+      <h3>安全库存曲线（每周用截至当天的数据重算）</h3>
+      <div class="sub">蓝 = 新安全库存，橙虚线 = 现行值</div>
+      <div id="c-roll" class="chart"></div>
+    </div>
+    <div class="card">
+      <h3>四个档位</h3>
+      <div class="sub">档位 = 满足率目标；当前报告用「<span id="lvname"></span>」档</div>
+      <div class="tablewrap" style="margin-top:10px"><table class="lv"><thead><tr><th>档位</th><th>满足率目标</th><th>安全库存</th><th>补货天数</th><th>实际满足率</th><th>缺货天数</th><th>下单次数</th><th>平均在库</th></tr></thead><tbody id="lv"></tbody></table></div>
+      <div class="take" id="lv-take"></div>
+    </div>
+    <div class="card">
+      <h3>取舍曲线 ①：安全库存 → 平均在库</h3>
+      <div class="sub">补货天数固定，把安全库存从 0 往上扫；灰横线 = 现场实际平均在库</div>
+      <div id="c-sw-avg" class="chart"></div>
+    </div>
+    <div class="card">
+      <h3>取舍曲线 ②：安全库存 → 满足率</h3>
+      <div class="sub">满足率 = 出库需求里当天能直接发出的比例；灰横线 = 目标</div>
+      <div id="c-sw-fill" class="chart"></div>
+    </div>
+    <div class="card">
+      <h3>交货期分布</h3>
+      <div class="sub">每次到货的实际交货天数（SAP）；新规则往前看的天数 = 中位交货期</div>
+      <div id="c-lead" class="chart"></div>
+    </div>
+    <div class="card">
+      <h3>每日出入库</h3>
+      <div class="sub">出库越成批，越要靠计划，而不是靠加大安全库存</div>
+      <div id="c-out" class="chart"></div>
+    </div>
+  </div>
+
+  <h2>说明与局限</h2>
+  <div class="card notes">
+    <ul>
+      <li><b>新安全库存的含义变了。</b>现行做法是「在库 ≤ 安全库存就补」，安全库存要扛住整个交货期的用量；新规则是「在库 + 在途 − 交货期内计划用量 ≤ 安全库存就补」，安全库存只扛计划之外的波动。如果 f-1 仍按「在库 ≤ 安全库存」触发，等效触发线 = 新安全库存 + 交货期计划用量（每个物料的 KPI 里写了）。</li>
+      <li><b>这是过拟合。</b>回放时假设提前知道未来一个交货期内的真实出库（相当于生产计划/BOM 需求准确），交货期也用的是真实那次到货的交货期。计划不准时满足率会下降，看「后 3 个月检验满足率」那一列。</li>
+      <li>数据：SAP 每日出入库 + 每日库存（<span id="src"></span>），2026-05-01 ~ 10-31，库存与出入库逐日递推核对误差为 0。现场真实缺货在 SAP 里看不到（没货就不过账），实际一侧只能看日终库存为 0 的天数。</li>
+      <li>样本只有 4 个物料、6 个月，只能说明方法可行，不能直接推到全部物料。</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+var DATA = /*__DATA__*/null;
+var charts = {};
+function css(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+function C() { return { ink: css("--ink"), ink2: css("--ink-2"), ink3: css("--ink-3"), grid: css("--grid"), line: css("--line"),
+  s1: css("--s1"), s2: css("--s2"), s3: css("--s3"), neutral: css("--neutral"), band: css("--band"), train: css("--train"), surface: css("--surface") }; }
+function fmt(v, nd) {
+  if (v == null || isNaN(v)) return "—";
+  nd = nd == null ? (Math.abs(v) >= 100 ? 0 : 1) : nd;
+  return Number(v).toLocaleString("zh-CN", { maximumFractionDigits: nd });
+}
+function pct(a, b) { return b ? Math.round((a - b) / b * 100) : null; }
+function signed(v) { return v == null ? "—" : (v > 0 ? "+" : "") + v + "%"; }
+function sd(d) { return d.slice(5); }
+function el(id) { return document.getElementById(id); }
+function short(m) { return m.name.split("/")[0]; }
+
+function base(c, opts) {
+  opts = opts || {};
+  return {
+    animationDuration: 500,
+    grid: { left: 56, right: opts.right || 24, top: opts.top || (opts.legend === false ? 16 : 62), bottom: opts.bottom || 30 },
+    legend: opts.legend === false ? undefined : { top: 4, left: 0, icon: "roundRect", itemWidth: 14, itemHeight: 4, textStyle: { color: c.ink2, fontSize: 12 }, data: opts.legendData },
+    tooltip: { trigger: "axis", backgroundColor: c.surface, borderColor: c.line, textStyle: { color: c.ink, fontSize: 12 },
+      axisPointer: { type: "line", lineStyle: { color: c.ink3, type: "dashed" } },
+      valueFormatter: function (v) { return v == null ? "—" : fmt(v); } },
+    xAxis: Object.assign({ type: "category", boundaryGap: false, axisLine: { lineStyle: { color: c.line } }, axisTick: { show: false },
+      axisLabel: { color: c.ink3, fontSize: 11 } }, opts.x || {}),
+    yAxis: Object.assign({ type: "value", splitLine: { lineStyle: { color: c.grid } }, axisLabel: { color: c.ink3, fontSize: 11 },
+      nameTextStyle: { color: c.ink3, fontSize: 11, align: "left" } }, opts.y || {})
+  };
+}
+function hline(v, label, color, pos) {
+  return { yAxis: v, lineStyle: { color: color, type: "dashed", width: 1.5 }, label: { formatter: label, color: color, fontSize: 11, position: pos || "insideEndTop" } };
+}
+function vline(v, label, color, lift) {
+  return { xAxis: v, lineStyle: { color: color, type: "dashed", width: 1.5 },
+    label: { formatter: label, color: color, fontSize: 11, position: "end", distance: lift || 4 } };
+}
+function valueX(c, name) {
+  return { type: "value", boundaryGap: false, name: name, nameLocation: "middle", nameGap: 26, nameTextStyle: { color: c.ink3, fontSize: 11 },
+    splitLine: { show: false }, axisLine: { lineStyle: { color: c.line } }, axisTick: { show: false }, axisLabel: { color: c.ink3, fontSize: 11 } };
+}
+function render(id, opt) {
+  var ch = charts[id] || (charts[id] = echarts.init(el(id)));
+  ch.setOption(opt, true);
+}
+
+function overview() {
+  var mats = DATA.materials;
+  el("meta").textContent = "SAP 每日出入库 · " + mats.length + " 个物料 · 2026-05-01 ~ 10-31 · 档位「" + DATA.level + "」满足率目标 " +
+    Math.round(mats[0].target * 100) + "% · 生成于 " + DATA.builtAt;
+  el("src").textContent = Array.from(new Set(mats.map(function (m) { return m.source; }))).join("、");
+  el("lvname").textContent = DATA.level;
+  el("ov").innerHTML = mats.map(function (m, i) {
+    var d = pct(m.fit.B, m.cur.s), va = pct(m.fit.avg, m.actual.avg);
+    return "<tr data-i='" + i + "'><td><b>" + short(m) + "</b> <span class='sub'>" + m.code + "</span></td>" +
+      "<td>" + fmt(m.cur.s) + " " + m.unit + "</td><td><b>" + fmt(m.fit.B) + "</b> " + m.unit + "</td>" +
+      "<td class='neg'><b>" + signed(d) + "</b></td>" +
+      "<td>" + fmt(m.fit.fill * 100, 1) + "% <span class='sub'>(" + m.fit.shortDays + " 天)</span></td>" +
+      "<td>" + m.fit.orders + " / " + m.actual.receipts + "</td>" +
+      "<td>" + fmt(m.fit.avg) + " <span class='" + (va <= 0 ? "neg" : "pos") + "'>(" + signed(va) + ")</span></td><td>" + fmt(m.actual.avg) + "</td>" +
+      "<td class='" + (m.test.fill >= 0.95 ? "" : "pos") + "'>" + fmt(m.test.fill * 100, 1) + "%</td>" +
+      "<td><span class='tag " + m.verdict.tone + "'>" + m.verdict.tag + "</span></td></tr>";
+  }).join("");
+  el("ov").onclick = function (e) { var tr = e.target.closest("tr"); if (tr) select(+tr.dataset.i, true); };
+  var drops = mats.map(function (m) { return short(m) + " " + fmt(m.cur.s) + "→" + fmt(m.fit.B); });
+  var weak = mats.filter(function (m) { return m.test.fill < 0.95; }).map(short);
+  el("ov-take").innerHTML = "点一行看细节。4 个物料的安全库存全部下降：" + drops.join("，") + "。" +
+    (weak.length ? "<b>" + weak.join("、") + "</b> 在没见过的后 3 个月满足率掉到 95% 以下，说明它们出库成批、最优值随时间变，上线时要配合准确的生产计划，并每月重算。" : "");
+  el("tabs").innerHTML = mats.map(function (m, i) { return "<button data-i='" + i + "'>" + short(m) + "</button>"; }).join("");
+  el("tabs").onclick = function (e) { var b = e.target.closest("button"); if (b) select(+b.dataset.i); };
+}
+
+var cur = 0;
+function select(i, scroll) {
+  cur = i;
+  var m = DATA.materials[i], c = C(), u = m.unit, f = m.fit;
+  Array.prototype.forEach.call(el("tabs").children, function (b, k) { b.classList.toggle("on", k === i); });
+  Array.prototype.forEach.call(el("ov").children, function (r, k) { r.classList.toggle("on", k === i); });
+  var lead = m.lead;
+  el("kpis").innerHTML = [
+    ["现行 安全库存 / 最高", fmt(m.cur.s) + " / " + fmt(m.cur.S), u + (m.cur.pack ? " · 包装 " + fmt(m.cur.pack) : "")],
+    ["新安全库存", fmt(f.B) + " " + u, signed(pct(f.B, m.cur.s)) + " · 每次多补 " + f.cover + " 天用量"],
+    ["交货期计划用量", fmt(f.planQty) + " " + u, "往前看 " + f.Lp + " 天 · 等效触发线 " + fmt(f.B + f.planQty)],
+    ["平均在库 新规则 / 实际", fmt(f.avg) + " / " + fmt(m.actual.avg), u + " · 下单 " + f.orders + " 次 / 实际到货 " + m.actual.receipts + " 次"],
+    ["实际交货期（中位）", lead.median + " 天", "P25–P75 " + lead.p25 + "–" + lead.p75 + " 天 · " + lead.all.length + " 次到货"]
+  ].map(function (k) { return "<div class='card kpi'><div class='k'>" + k[0] + "</div><div class='v' title='" + k[1] + "'>" + k[1] + "</div><div class='s' title='" + k[2] + "'>" + k[2] + "</div></div>"; }).join("");
+  var v = el("verdict");
+  v.className = "card verdict " + m.verdict.tone;
+  v.innerHTML = "<span class='tag " + m.verdict.tone + "'>" + m.verdict.tag + "</span> " + m.verdict.text;
+
+  var n = m.dates.length, x = m.dates.map(sd);
+
+  // 在库曲线
+  var o = base(c, { legendData: ["现场实际日终库存", "按新安全库存补货"] });
+  o.xAxis.data = x;
+  o.yAxis.name = u;
+  o.tooltip.formatter = function (ps) {
+    var j = ps[0].dataIndex;
+    return "<b>" + m.dates[j] + "</b><br>出库 " + fmt(m.out[j]) + "　实际入库 " + fmt(m.rec[j]) +
+      "<br><span style='color:" + c.neutral + "'>●</span> 实际库存 " + fmt(m.stock[j]) +
+      "<br><span style='color:" + c.s1 + "'>●</span> 新规则库存 " + fmt(m.trace[j]);
+  };
+  o.series = [
+    { name: "现场实际日终库存", type: "line", step: "end", data: m.stock, showSymbol: false, lineStyle: { width: 1.5, color: c.neutral }, itemStyle: { color: c.neutral },
+      areaStyle: { color: c.neutral, opacity: 0.08 },
+      markArea: { silent: true, itemStyle: { color: c.train }, label: { color: c.ink3, fontSize: 11, position: "insideTop" },
+        data: [[{ xAxis: x[0], name: "起步（在途单）" }, { xAxis: x[Math.max(m.warm - 1, 0)] }]] },
+      markLine: { symbol: "none", silent: true, data: [hline(m.cur.s, "现行安全库存 " + fmt(m.cur.s), c.s2, "insideEndTop")] } },
+    { name: "按新安全库存补货", type: "line", step: "end", data: m.trace, showSymbol: false, lineStyle: { width: 2.5, color: c.s1 }, itemStyle: { color: c.s1 },
+      markLine: { symbol: "none", silent: true, data: [hline(f.B, "新安全库存 " + fmt(f.B), c.s1, "insideStartTop")] } }
+  ];
+  render("c-stock", o);
+
+  // 安全库存曲线
+  var r = base(c, { legendData: ["新安全库存", "现行安全库存"] });
+  r.xAxis.data = m.rolling.map(function (p) { return sd(p.date); });
+  r.yAxis.name = u;
+  r.yAxis.min = 0;
+  r.series = [
+    { name: "新安全库存", type: "line", step: "end", data: m.rolling.map(function (p) { return p.B; }), symbolSize: 7, lineStyle: { width: 2.5, color: c.s1 }, itemStyle: { color: c.s1 },
+      endLabel: { show: true, formatter: function (p) { return fmt(p.value); }, color: c.s1, fontWeight: 600 } },
+    { name: "现行安全库存", type: "line", data: m.rolling.map(function () { return m.cur.s; }), showSymbol: false, lineStyle: { width: 1.5, color: c.s2, type: [5, 4] }, itemStyle: { color: c.s2 } }
+  ];
+  r.grid.right = 56;
+  render("c-roll", r);
+
+  // 档位
+  el("lv").innerHTML = m.levels.map(function (l) {
+    return "<tr class='" + (l.name === m.level ? "on" : "") + "'><td>" + l.name + "</td><td>" + Math.round(l.target * 100) + "%</td><td>" + fmt(l.B) +
+      " <span class='" + (l.B <= m.cur.s ? "neg" : "pos") + "'>(" + signed(pct(l.B, m.cur.s)) + ")</span></td><td>" + l.cover + " 天</td><td>" + fmt(l.fill * 100, 1) +
+      "%</td><td>" + l.shortDays + "</td><td>" + l.orders + "</td><td>" + fmt(l.avg) + "</td></tr>";
+  }).join("");
+  var hi = m.levels.filter(function (l) { return l.B > m.cur.s; }).map(function (l) { return l.name; });
+  el("lv-take").textContent = hi.length ? "「" + hi.join("、") + "」档要零缺货，得高于现行值；要降成本请用「激进」或「极限」档。" :
+    "四个档位都低于现行值。";
+
+  // 取舍曲线
+  var marks = [vline(f.B, "新 " + fmt(f.B), c.s1, 4), vline(m.cur.s, "现行 " + fmt(m.cur.s), c.s2, 18)];
+  var sweepX = function () { return Object.assign(valueX(c, "安全库存（" + u + "）"), { max: "dataMax" }); };
+  var a = base(c, { legend: false, top: 48, bottom: 44, x: sweepX(), y: { name: "平均在库 " + u,
+    max: function (vv) { return Math.ceil(Math.max(vv.max, m.actual.avg) * 1.1); } } });
+  a.tooltip.formatter = function (ps) { var p = m.sweep[ps[0].dataIndex]; return "安全库存 " + fmt(p.s) + "<br>平均在库 " + fmt(p.avg) + "<br>满足率 " + fmt(p.fill * 100, 1) + "%（缺货 " + p.shortDays + " 天）"; };
+  a.series = [{ type: "line", data: m.sweep.map(function (p) { return [p.s, p.avg]; }), showSymbol: false, lineStyle: { width: 2, color: c.s1 }, itemStyle: { color: c.s1 },
+    markLine: { symbol: "none", silent: true, data: marks.concat([hline(m.actual.avg, "实际平均在库 " + fmt(m.actual.avg), c.neutral, "insideStartTop")]) } }];
+  render("c-sw-avg", a);
+  var fl = base(c, { legend: false, top: 48, bottom: 44, x: sweepX(), y: { name: "满足率 %", max: 100 } });
+  fl.tooltip.formatter = a.tooltip.formatter;
+  fl.series = [{ type: "line", data: m.sweep.map(function (p) { return [p.s, +(p.fill * 100).toFixed(2)]; }), showSymbol: false, lineStyle: { width: 2, color: c.s1 }, itemStyle: { color: c.s1 },
+    markLine: { symbol: "none", silent: true, data: marks.concat([hline(m.target * 100, "目标 " + Math.round(m.target * 100) + "%", c.neutral, "insideStartBottom")]) } }];
+  var mn = Math.min.apply(null, m.sweep.map(function (p) { return p.fill * 100; }));
+  fl.yAxis.min = Math.max(0, Math.floor(mn / 10) * 10);
+  render("c-sw-fill", fl);
+
+  // 交货期分布
+  var cnt = {};
+  lead.all.forEach(function (d) { var b = Math.round(d); cnt[b] = (cnt[b] || 0) + 1; });
+  var maxL = Math.max.apply(null, lead.all) + 2;
+  var ld = base(c, { legend: false, top: 48, bottom: 44, x: Object.assign(valueX(c, "交货天数"), { min: 0, max: Math.ceil(maxL) }), y: { name: "到货次数", minInterval: 1 } });
+  ld.tooltip = { trigger: "item", backgroundColor: c.surface, borderColor: c.line, textStyle: { color: c.ink, fontSize: 12 },
+    formatter: function (p) { return "交货期 " + p.value[0] + " 天：" + p.value[1] + " 次"; } };
+  ld.series = [{ type: "bar", barWidth: "60%", data: Object.keys(cnt).map(function (k) { return [+k, cnt[k]]; }),
+    itemStyle: { color: c.s1, borderRadius: [4, 4, 0, 0] },
+    markLine: { symbol: "none", silent: true, data: [vline(lead.median, "中位 " + lead.median + " 天", c.s1, 4)] } }];
+  render("c-lead", ld);
+
+  // 每日出入库
+  var b = base(c, { legendData: ["出库", "入库"], x: { boundaryGap: true } });
+  b.xAxis.data = x;
+  b.yAxis.name = u;
+  b.series = [
+    { name: "出库", type: "bar", data: m.out, barMaxWidth: 8, itemStyle: { color: c.s1, borderRadius: [3, 3, 0, 0] } },
+    { name: "入库", type: "bar", data: m.rec, barMaxWidth: 8, barGap: "-100%", itemStyle: { color: c.s3, opacity: 0.55, borderRadius: [3, 3, 0, 0] } }
+  ];
+  render("c-out", b);
+  if (scroll) el("tabs").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+overview();
+select(0);
+window.addEventListener("resize", function () { Object.keys(charts).forEach(function (k) { charts[k].resize(); }); });
+if (window.matchMedia) window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", function () { select(cur); });
+</script>
+</body>
+</html>

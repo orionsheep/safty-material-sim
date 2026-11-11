@@ -1,0 +1,28 @@
+[
+  {
+    "id": "2031636243474722818",
+    "materialid": "2031636060603068418",
+    "name": "3005006676",
+    "rate": 1,
+    "status": 0,
+    "cuser": "sungaigai",
+    "ctime": "2026-03-11 15:40:01",
+    "muser": null,
+    "mtime": null,
+    "duser": null,
+    "dtime": null
+  },
+  {
+    "id": "2031636274445463553",
+    "materialid": "2031636060603068418",
+    "name": "3005006776",
+    "rate": 1,
+    "status": 0,
+    "cuser": "sungaigai",
+    "ctime": "2026-03-11 15:40:08",
+    "muser": null,
+    "mtime": null,
+    "duser": null,
+    "dtime": null
+  }
+]

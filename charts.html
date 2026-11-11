@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>安全库存曲线看板</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/element-ui@2.15.14/lib/theme-chalk/index.css">
+<style>
+  :root {
+    --surface: #ffffff;
+    --page: #f2f4f7;
+    --ink: #1f2329;
+    --ink-2: #52514e;
+    --ink-3: #8a8f99;
+    --grid: #eef0f3;
+    --s1: #2a78d6;   /* 建议 / 第一组 */
+    --s2: #eb6834;   /* 现行 / 第二组 */
+    --s3: #1baf7a;   /* 第三组 */
+    --neutral: #9aa0a6;
+  }
+  * { box-sizing: border-box; }
+  [v-cloak] { display: none; }
+  html, body { margin: 0; background: var(--page); color: var(--ink-2); font-family: "Helvetica Neue", Helvetica, "PingFang SC", "Microsoft YaHei", Arial, sans-serif; font-size: 13px; }
+  .topbar {
+    height: 50px; display: flex; align-items: center; gap: 14px; color: #fff; padding: 0 16px; position: sticky; top: 0; z-index: 20;
+    background: linear-gradient(180deg, rgba(255,255,255,.08), rgba(255,255,255,0) 42%), linear-gradient(90deg, #163e9c 0%, #1d5ed8 46%, #3c86ea 100%);
+  }
+  .brand { display: flex; align-items: center; gap: 8px; font-size: 16px; font-weight: 600; letter-spacing: .5px; }
+  .brand i { width: 22px; height: 22px; border: 2px solid #fff; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; font-style: normal; font-size: 12px; }
+  .topbar .title { font-size: 15px; opacity: .95; }
+  .topbar a { color: #fff; text-decoration: none; margin-left: auto; font-size: 13px; padding: 5px 10px; border-radius: 4px; background: rgba(255,255,255,.14); }
+  .topbar a:hover { background: rgba(255,255,255,.24); }
+  .wrap { max-width: 1440px; margin: 0 auto; padding: 14px 16px 40px; }
+  .hero {
+    border-radius: 8px; padding: 18px 20px; color: #fff; margin-bottom: 14px;
+    background: radial-gradient(1200px 300px at 10% -40%, rgba(255,255,255,.22), transparent 60%), linear-gradient(120deg, #1a46ad 0%, #2a78d6 60%, #3d93f0 100%);
+  }
+  .hero h1 { margin: 0 0 4px; font-size: 20px; font-weight: 600; letter-spacing: .5px; }
+  .hero p { margin: 0; opacity: .85; font-size: 13px; }
+  .hero .tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 14px; }
+  .hero .tile { background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.18); border-radius: 6px; padding: 10px 12px; min-width: 0; }
+  .hero .tile .k { font-size: 12px; opacity: .85; }
+  .hero .tile .v { font-size: 24px; font-weight: 600; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .hero .tile .s { font-size: 12px; opacity: .8; margin-top: 2px; }
+  .section-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin: 20px 2px 10px; }
+  .section-head h2 { margin: 0; font-size: 16px; color: var(--ink); font-weight: 600; }
+  .section-head .hint { color: var(--ink-3); font-size: 12px; }
+  .section-head .ctrl { margin-left: auto; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+  .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .card { background: var(--surface); border-radius: 8px; box-shadow: 0 1px 3px rgba(16,24,40,.06); padding: 12px 14px 8px; min-width: 0; position: relative; }
+  .card.full { grid-column: 1 / -1; }
+  .card h3 { margin: 0; font-size: 14px; color: var(--ink); font-weight: 600; }
+  .card .sub { color: var(--ink-3); font-size: 12px; margin-top: 2px; min-height: 16px; }
+  .chart { height: 300px; width: 100%; }
+  .card.full .chart { height: 360px; }
+  .card .take { margin: 4px 0 4px; font-size: 12px; color: var(--ink-2); background: #f7f9fc; border-radius: 4px; padding: 6px 10px; line-height: 1.6; }
+  .card .take b { color: var(--ink); }
+  .mat-kpis { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+  .mk { background: var(--surface); border-radius: 8px; padding: 10px 12px; box-shadow: 0 1px 3px rgba(16,24,40,.06); min-width: 0; }
+  .mk .k { color: var(--ink-3); font-size: 12px; }
+  .mk .v { color: var(--ink); font-size: 18px; font-weight: 600; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+  .mk .s { color: var(--ink-3); font-size: 12px; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; vertical-align: 1px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { cursor: pointer; border: 1px solid #dcdfe6; border-radius: 12px; padding: 2px 10px; font-size: 12px; color: var(--ink-2); background: #fff; }
+  .chip:hover, .chip.on { border-color: var(--s1); color: var(--s1); }
+  .empty { color: var(--ink-3); padding: 40px 0; text-align: center; }
+  .loading-mask { position: absolute; inset: 0; background: rgba(255,255,255,.7); display: flex; align-items: center; justify-content: center; color: var(--ink-3); border-radius: 8px; z-index: 2; }
+  .lv-legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12px; color: var(--ink-3); margin: -4px 2px 10px; }
+  .lv-legend b { color: var(--ink); font-weight: 600; }
+  .why { background: var(--surface); border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; line-height: 1.75; box-shadow: 0 1px 3px rgba(16,24,40,.06); border-left: 3px solid var(--s1); }
+  @media (max-width: 1000px) {
+    .grid { grid-template-columns: minmax(0, 1fr); }
+    .hero .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .mat-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+</style>
+</head>
+<body>
+<div id="app" v-cloak>
+  <header class="topbar">
+    <div class="brand"><i>华</i>卫华重型机械</div>
+    <div class="title">安全库存曲线看板</div>
+    <a href="index.html">← 返回安全库存列表</a>
+  </header>
+
+  <div class="wrap">
+    <el-alert v-if="!apiOk && checked" type="warning" :closable="false" show-icon style="margin-bottom:12px"
+      title="曲线看板需要本地服务：在 safty-material-sim 目录运行 python3 server.py，然后打开 http://127.0.0.1:8770/charts.html"></el-alert>
+
+    <div class="hero" v-if="ov && results">
+      <h1>安全库存曲线看板</h1>
+      <p>GWMS5 {{ ov.window.start }} ~ {{ ov.window.end }} · 批量试算 {{ (ov.resultsBuiltAt || '').replace('T', ' ') }} · 当前档位 {{ results.params.level || '—' }}（P{{ Math.round((results.params.serviceLevel || 0.9) * 100) }}） · 范围：生产类 / 非生产类 / 发车安全库存，共 {{ results.summary.total || results.items.length }} 个物料</p>
+      <div class="tiles">
+        <div class="tile"><div class="k">当前激进程度</div><div class="v">{{ results.params.level || '自定义' }}</div><div class="s" :title="results.params.levelDesc">{{ results.params.levelDesc || ('P' + Math.round(results.params.serviceLevel * 100)) }}</div></div>
+        <div class="tile"><div class="k">对照现行值：降 / 持平 / 升</div><div class="v">{{ results.summary.suggestDown }} / {{ results.summary.suggestSame }} / {{ results.summary.suggestUp }}</div><div class="s">{{ results.summary.comparable }} 个可比，{{ results.summary.hold || 0 }} 个模型算高但保持现行</div></div>
+        <div class="tile"><div class="k">对照实际自由在库：在库变化中位数</div><div class="v">{{ signed(Math.round(-results.summary.medianSavingActual * 100)) }}%</div><div class="s">{{ results.summary.withActual }} 个物料里 {{ results.summary.lowerThanActual }} 个更低</div></div>
+        <div class="tile"><div class="k">按规则执行时缺货天数/年（中位数）</div><div class="v">{{ results.summary.simShortMedian }}</div><div class="s">按现行值执行模拟 {{ results.summary.simCurShortMedian }} 天 · 现场实际很少断货</div></div>
+      </div>
+    </div>
+
+    <!-- ================= 单物料 ================= -->
+    <div class="section-head">
+      <h2>单个物料：按建议规则补货，在库降到哪里</h2>
+      <div class="ctrl">
+        <el-select v-model="code" filterable placeholder="输入物料编码或名称" size="small" style="width:360px" @change="loadMaterial" :filter-method="filterOptions">
+          <el-option v-for="o in options" :key="o.key" :label="o.code + '  ' + o.name" :value="o.code">
+            <span>{{ o.code }}</span><span style="color:#8a8f99;margin-left:8px">{{ o.name }}</span>
+          </el-option>
+        </el-select>
+        <el-select v-model="level" size="small" style="width:110px" @change="loadMaterial">
+          <el-option v-for="n in LEVEL_NAMES" :key="n" :label="n + '档'" :value="n"></el-option>
+        </el-select>
+      </div>
+    </div>
+    <div class="chips" style="margin:-2px 2px 12px" v-if="picks.length">
+      <span class="hint" style="color:#8a8f99;font-size:12px;margin-right:2px">看看这些：</span>
+      <span class="chip" v-for="p in picks" :key="p.code" :class="{ on: p.code === code }" @click="code = p.code; loadMaterial()">{{ p.label }} · {{ p.code }}</span>
+    </div>
+
+    <template v-if="mat && mat.base">
+      <div class="mat-kpis">
+        <div class="mk"><div class="k">物料</div><div class="v" :title="mat.base.name">{{ mat.base.name }}</div><div class="s">{{ mat.base.code }} · {{ mat.base.mtypeName }}</div></div>
+        <div class="mk"><div class="k"><span class="dot" style="background:var(--s2)"></span>现行 安全 / 最高</div><div class="v">{{ fmt(mat.base.cur) }} / {{ fmt(mat.base.curMax) }}</div><div class="s">{{ mat.base.unit }}</div></div>
+        <div class="mk"><div class="k"><span class="dot" style="background:var(--s1)"></span>建议 安全 / 最高</div><div class="v">{{ fmt(mat.base.ss) }} / {{ fmt(mat.base.max) }}</div><div class="s">{{ mat.base.hold ? ('模型值 ' + fmt(mat.base.rawSs) + '，保持现行') : (mat.base.dev == null ? statusText(mat.base) : ('偏差 ' + signed(Math.round(mat.base.dev * 100)) + '%')) }}</div></div>
+        <div class="mk"><div class="k">交货期</div><div class="v">{{ fmt(mat.base.lead) }} 天</div><div class="s">{{ mat.base.leadSrc }}</div></div>
+        <div class="mk"><div class="k">平均自由在库：实际 → 建议</div><div class="v">{{ mat.base.actual ? fmt(mat.base.actual.avgFree) : '—' }} → {{ mat.base.simSug ? fmt(mat.base.simSug.avg) : '—' }}</div><div class="s">{{ mat.base.savingActual == null ? '无实际基线' : signed(Math.round(-mat.base.savingActual * 100)) + '%' }}</div></div>
+        <div class="mk"><div class="k">缺货天数/年（建议规则）</div><div class="v">{{ mat.base.simSug ? Math.round(mat.base.simSug.stockoutDays) : '—' }}</div><div class="s">实际 {{ mat.base.actual ? Math.round(mat.base.actual.stockoutDays) : '—' }} · 可信度 {{ mat.base.conf || '—' }}</div></div>
+      </div>
+      <div class="why">{{ mat.base.why }}</div>
+    </template>
+
+    <div class="grid" v-show="mat && mat.base && mat.base.series">
+      <div class="card full">
+        <h3>在库曲线：过去 {{ mat && mat.base.series ? mat.base.series.dates.length : '' }} 天 + 未来 60 天</h3>
+        <div class="sub">过去是出入库倒推的实际在库；未来从当前自由在库出发，按两种申报规则各模拟 200 次（阴影为建议规则 P10–P90，未计在途）</div>
+        <div id="m-stock" class="chart"></div>
+        <div class="loading-mask" v-if="matLoading">计算中…</div>
+      </div>
+      <div class="card full">
+        <h3>四档激进程度下，这个物料的建议值</h3>
+        <div class="sub">柱子是各档的建议安全库存和按建议规则模拟的平均在库；虚线是现行安全库存和近两个月实际平均自由在库</div>
+        <div id="m-levels" class="chart"></div>
+      </div>
+    </div>
+    <div class="card" v-if="mat && mat.base && !mat.base.series"><div class="empty">{{ mat.base.why }}</div></div>
+
+    <!-- ================= 全部物料在库指数 ================= -->
+    <div class="section-head">
+      <h2>全部物料：在库指数</h2>
+      <span class="hint">每个物料按自己近两个月的平均实际自由在库记为 100，再把所有物料放在一起看</span>
+      <div class="ctrl" v-if="ix">
+        <el-radio-group v-model="ixGroup" size="mini" @change="drawIndex">
+          <el-radio-button v-for="(g, k) in ix.groups" :key="k" :label="k">{{ k }}（{{ g.n }}）</el-radio-button>
+        </el-radio-group>
+        <el-radio-group v-model="ixStat" size="mini" @change="drawIndex">
+          <el-radio-button label="median">中位数物料</el-radio-button>
+          <el-radio-button label="mean">平均</el-radio-button>
+        </el-radio-group>
+      </div>
+    </div>
+    <div class="grid">
+      <div class="card full">
+        <h3>在库指数：过去 {{ ix ? ix.dates.length : '' }} 天实际 + 未来 60 天按{{ ix && ix.level ? ix.level + '档' : '建议' }}规则</h3>
+        <div class="sub">100 = 各物料近两个月平均实际自由在库。未来从当前自由在库出发模拟（各物料 200 次取中位），未计在途；单个物料最多按 5 倍计</div>
+        <div id="ix-chart" class="chart"></div>
+        <div class="loading-mask" v-if="ixLoading">逐个物料模拟未来 60 天…</div>
+        <div class="take" v-if="ixG">
+          {{ ixGroup }}物料 {{ ixG.n }} 个：按建议规则补货，稳定后在库指数约 <b>{{ ixG[ixStat].sugSteady }}</b>（近两个月实际 = {{ ixG[ixStat].pastAvg }}），
+          即在库 <b>{{ signed(Math.round(ixG[ixStat].sugSteady - ixG[ixStat].pastAvg)) }}%</b>；<b>{{ ixG.lowerShare }}%</b> 的物料稳定后低于自己的实际平均在库。
+          <template v-if="ixStat === 'median'">按平均算是 {{ ixG.mean.sugSteady }}（少数物料建议上调幅度大，把平均拉高）。</template>
+          橙色虚线是「严格按现行值补货」的模拟，现场实际在库远高于它，说明现行值并没有被严格执行。
+        </div>
+      </div>
+    </div>
+
+    <div class="section-head">
+      <h2>这个物料的更多曲线</h2>
+      <span class="hint" v-if="mat && mat.base">{{ mat.base.code }} {{ mat.base.name }}：累计出库、交货期和服务水平怎么影响建议值</span>
+    </div>
+    <div class="grid" v-show="mat && mat.base && mat.base.series">
+      <div class="card">
+        <h3>累计出库</h3>
+        <div class="sub">斜率越陡出得越快；台阶越明显，需求越集中</div>
+        <div id="m-cum" class="chart"></div>
+      </div>
+      <div class="card">
+        <h3>交货期 → 建议安全库存</h3>
+        <div class="sub">交货期每多一天，要多备多少；圆点是当前采用的交货期</div>
+        <div id="m-lead" class="chart"></div>
+      </div>
+      <div class="card">
+        <h3>服务水平 → 平均在库</h3>
+        <div class="sub">按建议规则模拟一年的平均在库；虚线是实际和按现行值模拟的水平</div>
+        <div id="m-sl-stock" class="chart"></div>
+      </div>
+      <div class="card">
+        <h3>服务水平 → 缺货天数</h3>
+        <div class="sub">同一组模拟需求下，每年有缺货的天数</div>
+        <div id="m-sl-short" class="chart"></div>
+      </div>
+    </div>
+    <!-- ================= 激进程度对比 ================= -->
+    <div class="section-head">
+      <h2>激进程度对比</h2>
+      <span class="hint">四档各把全部物料重算一遍。越激进，建议值越低、库存降得越多，但如果严格按规则补货，缺货也越多</span>
+    </div>
+    <div class="lv-legend" v-if="lv">
+      <span v-for="l in lv.levels" :key="l.name"><span class="dot" :style="{ background: levelColor(l.name) }"></span><b>{{ l.name }}</b> {{ l.desc }}</span>
+    </div>
+    <div class="grid">
+      <div class="card">
+        <h3>对照现行安全库存：建议降、持平还是升</h3>
+        <div class="sub">{{ lv ? lv.levels[0].n : '' }} 个可与现行值比较的物料；「保持现行」= 模型算出来更高，但近两个月实际没断货，所以不升</div>
+        <div id="l-dir" class="chart"></div>
+        <div class="loading-mask" v-if="lvLoading">四档各整批重算，首次约 15 秒…</div>
+      </div>
+      <div class="card">
+        <h3>对照实际自由在库：在库能降多少</h3>
+        <div class="sub">建议规则模拟的平均在库相对近两个月实际平均自由在库的变化，中位数（负数 = 降库存）</div>
+        <div id="l-save" class="chart"></div>
+        <div class="loading-mask" v-if="lvLoading">计算中…</div>
+      </div>
+      <div class="card">
+        <h3>代价：严格按规则补货时的缺货天数</h3>
+        <div class="sub">按各档建议值「低于安全库存就申报」模拟一年，每个物料每年有缺货的天数</div>
+        <div id="l-short" class="chart"></div>
+        <div class="loading-mask" v-if="lvLoading">计算中…</div>
+      </div>
+      <div class="card">
+        <h3>在库变化的累计分布（按档位）</h3>
+        <div class="sub">曲线越靠左上，降库存的物料越多；与 0% 竖线的交点 = 在库不升的物料占比</div>
+        <div id="l-cdf" class="chart"></div>
+        <div class="loading-mask" v-if="lvLoading">计算中…</div>
+      </div>
+      <div class="card full" v-if="lv">
+        <div class="take">
+          <template v-for="l in lv.levels"><b>{{ l.name }}</b>：降 {{ l.down }} / 升 {{ l.up }}，在库变化中位数 <b>{{ signed(l.medianChange) }}%</b>，缺货中位数 {{ l.simShortMedian }} 天/年。 </template>
+          <br>现行安全库存普遍低于「日均 × 交货期」，所以纯按模型算（稳健档）大部分都会上调；但现场实际在库是按现行值模拟的好几倍、几乎不断货，
+          说明真正能省的是实际在库。均衡、激进档只在近两个月真断过货的物料上调，其余保持现行或下调。
+        </div>
+      </div>
+    </div>
+
+    <!-- ================= 全局 ================= -->
+    <div class="section-head">
+      <h2>全局曲线</h2>
+      <span class="hint">所有物料放在一起看，数的是「物料个数」或「百分比」，不同单位不相加</span>
+    </div>
+    <div class="grid">
+      <div class="card">
+        <h3>每天有出入库的物料数</h3>
+        <div class="sub">GWMS5 窗口内，按天数物料个数（导出当天不完整，已去掉）</div>
+        <div id="g-active" class="chart"></div>
+      </div>
+      <div class="card">
+        <h3>每天实际自由在库低于安全库存的物料数</h3>
+        <div class="sub">用出入库倒推的每日自由在库，对比现行值和建议值</div>
+        <div id="g-below" class="chart"></div>
+      </div>
+      <div class="card">
+        <h3>服务水平越高，能降库存的物料越少</h3>
+        <div class="sub">纯模型（不加上调限制）各服务水平整批重算：建议规则模拟在库低于实际自由在库的物料占比</div>
+        <div id="g-sl-share" class="chart"></div>
+        <div class="loading-mask" v-if="pfLoading">整批重算 5 个服务水平，首次约 15 秒…</div>
+      </div>
+      <div class="card">
+        <h3>在库变化中位数随服务水平的变化</h3>
+        <div class="sub">建议规则模拟在库相对实际自由在库的变化（负数 = 降库存）</div>
+        <div id="g-sl-median" class="chart"></div>
+        <div class="loading-mask" v-if="pfLoading">计算中…</div>
+      </div>
+      <div class="card full">
+        <h3>在库变化的累计分布</h3>
+        <div class="sub">横轴：建议规则在库相对实际的变化；纵轴：变化不超过该值的物料占比。曲线越靠左上，降库存的物料越多</div>
+        <div id="g-cdf" class="chart"></div>
+        <div class="take" v-if="cdf('f-1 采购周期') && cdf(DEFAULT_GROUP)">
+          当前档位下，有交货期依据（f-1 采购周期）的 <b>{{ cdf('f-1 采购周期').n }}</b> 个物料里，<b>{{ cdfAt('f-1 采购周期', 0) }}%</b> 在库不升；
+          缺交货期、用默认值的 <b>{{ cdf(DEFAULT_GROUP).n }}</b> 个物料里是 <b>{{ cdfAt(DEFAULT_GROUP, 0) }}%</b>。补上 SAP 实际交货天数后，这部分建议才可靠。
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/vue@2.7.16/dist/vue.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/element-ui@2.15.14/lib/index.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/element-ui@2.15.14/lib/umd/locale/zh-CN.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.1/dist/echarts.min.js"></script>
+<script>
+ELEMENT.locale(ELEMENT.lang.zhCN);
+var STORE_KEY = "safty-material-sim-v2";
+var C = { s1: "#2a78d6", s2: "#eb6834", s3: "#1baf7a", neutral: "#9aa0a6", ink: "#1f2329", ink2: "#52514e", ink3: "#8a8f99", grid: "#eef0f3" };
+var DEFAULT_GROUP = "缺交货期（默认值）";
+var GROUP_COLOR = { "全部": C.s1, "f-1 采购周期": C.s3 };
+GROUP_COLOR[DEFAULT_GROUP] = C.s2;
+var LEVEL_NAMES = ["稳健", "均衡", "激进", "极限"];
+var LEVEL_SL = { "稳健": 0.9, "均衡": 0.85, "激进": 0.75, "极限": 0.6 };
+// 档位是有序的：同一个蓝色从浅到深
+var LEVEL_COLOR = { "稳健": "#8db7ea", "均衡": "#4f8fdf", "激进": "#2a68c2", "极限": "#173f7e" };
+var charts = {};
+
+function fmtNum(x) {
+  if (x === null || x === undefined || x === "") return "—";
+  x = Number(x);
+  if (Math.abs(x) >= 100 || Number.isInteger(x)) return x.toLocaleString("zh-CN", { maximumFractionDigits: 0 });
+  return x.toLocaleString("zh-CN", { maximumFractionDigits: 2 });
+}
+function fade(hex, a) {
+  var n = parseInt(hex.slice(1), 16);
+  return "rgba(" + (n >> 16) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + a + ")";
+}
+function area(hex) {
+  return { color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [{ offset: 0, color: fade(hex, .28) }, { offset: 1, color: fade(hex, .02) }]) };
+}
+function line(name, data, color, extra) {
+  return Object.assign({ name: name, type: "line", data: data, smooth: 0.35, showSymbol: false, symbolSize: 8,
+    lineStyle: { width: 2, color: color }, itemStyle: { color: color }, emphasis: { focus: "series" } }, extra || {});
+}
+function base(opts) {
+  opts = opts || {};
+  return {
+    animationDuration: 700,
+    grid: { left: 52, right: 24, top: opts.legend === false ? 16 : 40, bottom: opts.zoom ? 52 : 30, containLabel: false },
+    legend: opts.legend === false ? undefined : { top: 4, left: 0, icon: "roundRect", itemWidth: 14, itemHeight: 4, textStyle: { color: C.ink2, fontSize: 12 } },
+    tooltip: { trigger: "axis", backgroundColor: "#fff", borderColor: "#e4e7ed", textStyle: { color: C.ink, fontSize: 12 },
+      axisPointer: { type: "line", lineStyle: { color: "#c0c4cc", type: "dashed" } },
+      valueFormatter: opts.fmt || function (v) { return v == null ? "—" : fmtNum(v); } },
+    xAxis: Object.assign({ type: "category", boundaryGap: false, axisLine: { lineStyle: { color: "#dcdfe6" } }, axisTick: { show: false },
+      axisLabel: { color: C.ink3, fontSize: 11 } }, opts.x || {}),
+    yAxis: Object.assign({ type: "value", splitLine: { lineStyle: { color: C.grid } }, axisLabel: { color: C.ink3, fontSize: 11 },
+      nameTextStyle: { color: C.ink3, fontSize: 11, align: "left" } }, opts.y || {}),
+    dataZoom: opts.zoom ? [{ type: "slider", height: 14, bottom: 8, borderColor: "transparent", fillerColor: fade(C.s1, .12), handleSize: 14 }, { type: "inside" }] : undefined
+  };
+}
+function hline(value, label, color, pos) {
+  return { yAxis: value, lineStyle: { color: color, type: "dashed", width: 1.5 },
+    label: { formatter: label, color: C.ink2, fontSize: 11, position: pos || "insideEndTop" } };
+}
+function render(id, option) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  var ch = charts[id] || (charts[id] = echarts.init(el));
+  ch.setOption(option, true);
+  ch.resize();
+}
+function shortDate(d) { return d ? d.slice(5) : d; }
+// 让参考线（实际、现行模拟）也落在 y 轴范围内
+function fitMax(refs) {
+  var top = Math.max.apply(null, refs.filter(function (v) { return v != null; }).concat([0]));
+  return function (v) {
+    var m = Math.max(v.max, top) * 1.08;
+    if (m <= 0) return 1;
+    var step = Math.pow(10, Math.floor(Math.log10(m))) / 2;
+    return Math.ceil(m / step) * step;
+  };
+}
+
+new Vue({
+  el: "#app",
+  data: function () {
+    return { checked: false, apiOk: false, ov: null, pf: null, pfLoading: false, lv: null, lvLoading: false, ix: null, ixLoading: false, ixGroup: "全部", ixStat: "median", results: null, materials: [],
+             options: [], allOptions: [], picks: [], code: "", level: "激进", mat: null, matLoading: false,
+             LEVEL_NAMES: LEVEL_NAMES, DEFAULT_GROUP: DEFAULT_GROUP };
+  },
+  computed: {
+    ixG: function () { return this.ix && this.ix.groups[this.ixGroup]; }
+  },
+  methods: {
+    fmt: fmtNum,
+    loadIndex: function () {
+      var self = this;
+      this.ixLoading = true;
+      this.getJSON("api/stock-index").then(function (ix) { self.ix = Object.freeze(ix); self.$nextTick(self.drawIndex); })
+        .catch(function (e) { self.$message.error("在库指数没算出来：" + e.message); })
+        .then(function () { self.ixLoading = false; });
+    },
+    drawIndex: function () {
+      var ix = this.ix, g = ix && ix.groups[this.ixGroup];
+      if (!g) return;
+      var d = g[this.ixStat], n = ix.dates.length, k = ix.projDates.length;
+      var pad = function (arr, before, after) { var o = []; for (var i = 0; i < before; i++) o.push(null); o = o.concat(arr); for (var j = 0; j < after; j++) o.push(null); return o; };
+      var x = ix.dates.concat(ix.projDates).map(shortDate);
+      var sug = pad(d.sug, n, 0), cur = pad(d.cur, n, 0);
+      sug[n - 1] = d.past[n - 1]; cur[n - 1] = d.past[n - 1];
+      var o = base({ y: { name: "在库指数", max: fitMax([d.past.reduce(function (a, b) { return Math.max(a, b); }, 0), 100]) }, fmt: function (v) { return v == null ? "—" : fmtNum(v); }, zoom: false });
+      o.xAxis.data = x;
+      o.series = [
+        line("实际自由在库", pad(d.past, 0, k), C.s1, { areaStyle: area(C.s1), smooth: false,
+          markLine: { symbol: "none", silent: true, data: [hline(100, "近两个月实际平均 = 100", C.neutral, "insideStartTop")] },
+          markArea: { silent: true, itemStyle: { color: "rgba(42,120,214,.035)" }, data: [[{ xAxis: shortDate(ix.projDates[0]), name: "预测", label: { color: C.ink3, fontSize: 11, position: "insideTopLeft" } }, { xAxis: shortDate(ix.projDates[k - 1]) }]] } }),
+        line("建议规则预测", sug, C.s1, { lineStyle: { width: 3, color: C.s1, type: [6, 3] },
+          endLabel: { show: true, formatter: function (p) { return fmtNum(p.value); }, color: C.s1, fontWeight: 600 } }),
+        line("按现行值严格补货（模拟）", cur, C.s2, { lineStyle: { width: 1.5, color: C.s2, type: [4, 4] } })
+      ];
+      o.grid.right = 48;
+      render("ix-chart", o);
+    },
+    levelColor: function (n) { return LEVEL_COLOR[n] || C.neutral; },
+    signed: function (v) { return v == null ? "—" : (v > 0 ? "+" : "") + v; },
+    avg: function (arr) { if (!arr || !arr.length) return "—"; return Math.round(arr.reduce(function (a, b) { return a + b; }, 0) / arr.length); },
+    cdf: function (k) { return this.ov && this.ov.savingCdf.series[k]; },
+    cdfAt: function (k, x) {
+      var s = this.cdf(k); if (!s) return "—";
+      var i = this.ov.savingCdf.x.indexOf(x);
+      return i < 0 ? "—" : Math.round(s.y[i]);
+    },
+    statusText: function (r) {
+      return ({ ok: "已给出建议", not_applicable: "零库存管理，不适用", insufficient: "样本不足", no_data: "近两个月无出入库", unit_mismatch: "单位不一致，仅供参考" })[r.status] || r.status;
+    },
+    getJSON: function (url, body) {
+      var self = this;
+      var path = String(url).split("?")[0];
+      var init = body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : undefined;
+      var read = function (r) {
+        return r.text().then(function (t) {
+          var j;
+          try { j = JSON.parse(t); } catch (e) { throw new Error(String(r.status || "不是 JSON")); }
+          if (!r.ok) throw new Error(j.error || r.status);
+          return j;
+        });
+      };
+      var file = {
+        "api/status": "data/gwms/status.json",
+        "api/overview": "data/gwms/overview.json",
+        "api/results": "data/gwms/results.json",
+        "api/stock-index": "data/gwms/curves-index.json",
+        "api/portfolio-curve": "data/gwms/curves-portfolio.json",
+        "api/levels": "data/gwms/curves-levels.json"
+      }[path];
+      return fetch(url, init).then(read).catch(function (err) {
+        if (!file || body) throw err;
+        self.staticMode = true;
+        return fetch(file).then(read);
+      });
+    },
+    // ---------------- 全局
+    drawOverview: function () {
+      var ov = this.ov, x = ov.dates.map(shortDate);
+      var count = function (v) { return v + " 个"; };
+      var o1 = base({ y: { name: "物料数", minInterval: 1 }, fmt: count });
+      o1.xAxis.data = x;
+      o1.series = [
+        line("需由安全库存覆盖的出库", ov.activeCover, C.s1, { areaStyle: area(C.s1) }),
+        line("按单/BOM 出库", ov.activeBom, C.s2),
+        line("入库", ov.activeIn, C.s3)
+      ];
+      render("g-active", o1);
+      var o2 = base({ y: { name: "物料数", minInterval: 1 }, fmt: count });
+      o2.xAxis.data = x;
+      o2.series = [
+        line("低于建议安全库存", ov.belowSug, C.s1, { areaStyle: area(C.s1) }),
+        line("低于现行安全库存", ov.belowCur, C.s2, { areaStyle: area(C.s2) })
+      ];
+      render("g-below", o2);
+      var cd = ov.savingCdf, keys = Object.keys(cd.series);
+      render("g-cdf", Object.assign(base({ x: { type: "value", min: -100, max: 300, axisLabel: { color: C.ink3, formatter: "{value}%" } },
+          y: { max: 100, axisLabel: { color: C.ink3, formatter: "{value}%" } }, fmt: function (v) { return v + "%"; } }), {
+        tooltip: { trigger: "axis", backgroundColor: "#fff", borderColor: "#e4e7ed", textStyle: { color: C.ink, fontSize: 12 },
+          formatter: function (ps) {
+            var h = "在库变化 ≤ " + ps[0].value[0] + "%";
+            ps.forEach(function (p) { h += "<br>" + p.marker + p.seriesName + "：" + p.value[1] + "% 的物料"; });
+            return h;
+          } },
+        series: keys.map(function (k) {
+          var s = cd.series[k];
+          return line(k + "（" + s.n + "）", cd.x.map(function (v, i) { return [v, s.y[i]]; }), GROUP_COLOR[k] || C.neutral,
+            k === "全部" ? { lineStyle: { width: 2, color: GROUP_COLOR[k], type: "dashed" } } : {});
+        }).concat([{ type: "line", data: [], markLine: { symbol: "none", silent: true, data: [{ xAxis: 0, lineStyle: { color: "#c0c4cc", type: "solid" },
+          label: { formatter: "不变", color: C.ink3, fontSize: 11 } }] } }])
+      }));
+    },
+    loadPortfolio: function () {
+      var self = this;
+      this.pfLoading = true;
+      this.getJSON("api/portfolio-curve").then(function (pf) { self.pf = pf; self.drawPortfolio(); })
+        .catch(function (e) { self.$message.error("服务水平曲线没算出来：" + e.message); })
+        .then(function () { self.pfLoading = false; });
+    },
+    drawPortfolio: function () {
+      var lv = this.pf.levels, x = lv.map(function (l) { return "P" + Math.round(l.sl * 100); });
+      var groups = ["全部", "f-1 采购周期", DEFAULT_GROUP];
+      var mk = function (field) {
+        return groups.map(function (g) {
+          return line(g, lv.map(function (l) { return l.groups[g] ? l.groups[g][field] : null; }), GROUP_COLOR[g],
+            { showSymbol: true, symbol: "circle", symbolSize: 8, itemStyle: { color: GROUP_COLOR[g], borderColor: "#fff", borderWidth: 2 },
+              lineStyle: { width: 2, color: GROUP_COLOR[g], type: g === "全部" ? "dashed" : "solid" } });
+        });
+      };
+      var share = base({ y: { max: 100, axisLabel: { color: C.ink3, formatter: "{value}%" } }, fmt: function (v) { return v == null ? "—" : v + "%"; } });
+      share.xAxis.data = x; share.xAxis.boundaryGap = true;
+      share.series = mk("lowerShare");
+      render("g-sl-share", share);
+      var med = base({ y: { axisLabel: { color: C.ink3, formatter: "{value}%" } }, fmt: function (v) { return v == null ? "—" : (v > 0 ? "+" : "") + v + "%"; } });
+      med.xAxis.data = x; med.xAxis.boundaryGap = true;
+      med.series = mk("median");
+      med.series[0].markLine = { symbol: "none", silent: true, data: [hline(0, "与实际持平", "#c0c4cc")] };
+      render("g-sl-median", med);
+    },
+    // ---------------- 激进程度对比
+    loadLevels: function () {
+      var self = this;
+      this.lvLoading = true;
+      this.getJSON("api/levels").then(function (lv) { self.lv = lv; self.$nextTick(self.drawLevels); })
+        .catch(function (e) { self.$message.error("激进程度对比没算出来：" + e.message); })
+        .then(function () { self.lvLoading = false; });
+    },
+    drawLevels: function () {
+      var L = this.lv.levels, names = L.map(function (l) { return l.name; });
+      var cur = this.results && this.results.params.level;
+      var catX = { type: "category", data: names, boundaryGap: true,
+        axisLabel: { color: C.ink2, fontSize: 12, formatter: function (n) { return n === cur ? "{b|" + n + "（当前）}" : n; }, rich: { b: { fontWeight: 600, color: C.ink } } } };
+      // 1. 方向：横向堆叠条
+      var seg = [
+        { name: "下调", key: function (l) { return l.down; }, color: C.s3 },
+        { name: "保持现行（模型算高）", key: function (l) { return l.hold; }, color: "#c7ccd3" },
+        { name: "本来就接近", key: function (l) { return l.same - l.hold; }, color: C.neutral },
+        { name: "上调", key: function (l) { return l.up; }, color: C.s2 }
+      ];
+      var o1 = base({ fmt: function (v) { return v + " 个"; } });
+      o1.tooltip.axisPointer = { type: "shadow" };
+      o1.grid.left = 92;
+      o1.yAxis = Object.assign({}, catX, { type: "category", inverse: true, axisLine: { show: false }, axisTick: { show: false } });
+      o1.xAxis = { type: "value", max: L[0].n, splitLine: { lineStyle: { color: C.grid } }, axisLabel: { color: C.ink3, fontSize: 11 } };
+      o1.series = seg.map(function (sg, i) {
+        return { name: sg.name, type: "bar", stack: "dir", barWidth: 22, data: L.map(sg.key),
+          itemStyle: { color: sg.color, borderColor: "#fff", borderWidth: 1, borderRadius: i === 0 ? [4, 0, 0, 4] : (i === seg.length - 1 ? [0, 4, 4, 0] : 0) },
+          label: { show: true, color: i === 1 ? C.ink2 : "#fff", fontSize: 11, formatter: function (p) { return p.value >= 40 ? p.value : ""; } } };
+      });
+      render("l-dir", o1);
+      // 2. 在库变化中位数（按交货期来源）
+      var groups = [["全部", function (l) { return l.medianChange; }]].concat(["f-1 采购周期", DEFAULT_GROUP].map(function (g) {
+        return [g, function (l) { return l.byLeadSrc[g] ? l.byLeadSrc[g].medianChange : null; }];
+      }));
+      var o2 = base({ x: catX, y: { axisLabel: { color: C.ink3, formatter: "{value}%" } }, fmt: function (v) { return v == null ? "—" : (v > 0 ? "+" : "") + v + "%"; } });
+      o2.series = groups.map(function (g) {
+        return line(g[0], L.map(g[1]), GROUP_COLOR[g[0]], { smooth: false, showSymbol: true, symbol: "circle", symbolSize: 8,
+          itemStyle: { color: GROUP_COLOR[g[0]], borderColor: "#fff", borderWidth: 2 },
+          lineStyle: { width: 2, color: GROUP_COLOR[g[0]], type: g[0] === "全部" ? "dashed" : "solid" } });
+      });
+      o2.series[0].markLine = { symbol: "none", silent: true, data: [hline(0, "与实际持平", "#c0c4cc")] };
+      o2.series[0].label = { show: true, position: "top", color: C.ink2, fontSize: 11, formatter: function (p) { return (p.value > 0 ? "+" : "") + p.value + "%"; } };
+      render("l-save", o2);
+      // 3. 缺货天数
+      var o3 = base({ x: catX, y: { name: "天/年" }, fmt: function (v) { return v == null ? "—" : v + " 天/年"; } });
+      o3.series = [
+        line("建议规则 中位数", L.map(function (l) { return l.simShortMedian; }), C.s1, { smooth: false, showSymbol: true, symbol: "circle", symbolSize: 8, areaStyle: area(C.s1),
+          itemStyle: { color: C.s1, borderColor: "#fff", borderWidth: 2 }, label: { show: true, position: "top", color: C.ink2, fontSize: 11 } }),
+        line("建议规则 P90（缺货最多的一成物料）", L.map(function (l) { return l.simShortP90; }), C.s3, { smooth: false, showSymbol: true, symbol: "circle", symbolSize: 8,
+          itemStyle: { color: C.s3, borderColor: "#fff", borderWidth: 2 } }),
+        line("按现行值执行 中位数", L.map(function (l) { return l.simCurShortMedian; }), C.s2, { smooth: false, showSymbol: true, symbol: "circle", symbolSize: 6,
+          lineStyle: { width: 1.5, color: C.s2, type: "dashed" } })
+      ];
+      render("l-short", o3);
+      // 4. CDF
+      var xs = this.lv.x;
+      render("l-cdf", Object.assign(base({ x: { type: "value", min: -100, max: 200, axisLabel: { color: C.ink3, formatter: "{value}%" } },
+          y: { max: 100, axisLabel: { color: C.ink3, formatter: "{value}%" } } }), {
+        tooltip: { trigger: "axis", backgroundColor: "#fff", borderColor: "#e4e7ed", textStyle: { color: C.ink, fontSize: 12 },
+          formatter: function (ps) {
+            var h = "在库变化 ≤ " + ps[0].value[0] + "%";
+            ps.forEach(function (p) { if (p.seriesName) h += "<br>" + p.marker + p.seriesName + "：" + p.value[1] + "% 的物料"; });
+            return h;
+          } },
+        series: L.map(function (l) {
+          return line(l.name, xs.map(function (v, i) { return [v, l.cdf[i]]; }), LEVEL_COLOR[l.name], { lineStyle: { width: l.name === cur ? 3 : 2, color: LEVEL_COLOR[l.name] } });
+        }).concat([{ type: "line", data: [], markLine: { symbol: "none", silent: true, data: [{ xAxis: 0, lineStyle: { color: "#c0c4cc", type: "solid" },
+          label: { formatter: "不变", color: C.ink3, fontSize: 11 } }] } }])
+      }));
+    },
+    // ---------------- 单物料
+    buildOptions: function () {
+      var byCode = {}, opts = [];
+      (this.results ? this.results.rows : []).forEach(function (r) {
+        if (byCode[r.code]) return;
+        byCode[r.code] = r;
+        if (r.status === "ok" || r.status === "unit_mismatch" || r.status === "insufficient") opts.push({ key: r.code, code: r.code, name: r.name || "", r: r });
+      });
+      this.allOptions = opts;
+      this.options = opts.slice(0, 200);
+      var ok = opts.filter(function (o) { return o.r.status === "ok" && o.r.savingActual != null && o.r.conf !== "低"; });
+      var pick = function (list, label) { return list.length ? [{ code: list[0].code, label: label }] : []; };
+      var byDown = ok.slice().sort(function (a, b) { return b.r.savingActual - a.r.savingActual; });
+      var byUp = ok.slice().sort(function (a, b) { return a.r.savingActual - b.r.savingActual; });
+      var busy = ok.slice().sort(function (a, b) { return b.r.nzDays - a.r.nzDays; });
+      var show = ok.filter(function (o) { return o.r.dev != null && o.r.dev < -0.1 && o.r.savingActual > 0.3 && !o.r.hold; })
+        .sort(function (a, b) { return b.r.nzDays - a.r.nzDays; });
+      var picks = pick(show, "降本示例").concat(pick(busy, "出库最频繁"), pick(byDown, "最能降库存"), pick(byUp, "建议明显上调"));
+      var sap = ok.filter(function (o) { return o.r.leadSrc.indexOf("SAP") === 0; });
+      if (sap.length) picks.push({ code: sap[0].code, label: "有 SAP 交货期" });
+      var seen = {};
+      this.picks = picks.filter(function (p) { if (seen[p.code]) return false; seen[p.code] = 1; return true; });
+    },
+    filterOptions: function (q) {
+      q = (q || "").trim();
+      this.options = (q ? this.allOptions.filter(function (o) { return o.code.indexOf(q) >= 0 || o.name.indexOf(q) >= 0; }) : this.allOptions).slice(0, 200);
+    },
+    rowFor: function (code) {
+      var m = this.materials.filter(function (r) { return String(r.no) === String(code) && String(r.status) !== "1"; })[0];
+      if (m) return { id: m.id, no: m.no, name: m.name, unit: m.unit, mtype: m.mtype, lquantity: Number(m.lquantity) || 0, hquantity: Number(m.hquantity) || 0, pquantity: Number(m.pquantity) || 0, pcycle: m.pcycle };
+      return { no: code };
+    },
+    loadMaterial: function () {
+      var self = this;
+      if (!this.code || !this.apiOk) return;
+      if (history.replaceState) history.replaceState(null, "", "?code=" + encodeURIComponent(this.code));
+      this.matLoading = true;
+      this.getJSON("api/curves", { row: this.rowFor(this.code), params: { level: this.level, bomBasis: this.results && this.results.params.bomBasis || "attr" } })
+        .then(function (m) { self.mat = m; self.$nextTick(self.drawMaterial); })
+        .catch(function (e) {
+          if (self.staticMode) self.$message.warning("线上打开的是已算好的快照，单物料曲线请在本地服务里看");
+          else self.$message.error("曲线没算出来：" + e.message);
+        })
+        .then(function () { self.matLoading = false; });
+    },
+    drawMaterial: function () {
+      var m = this.mat, b = m.base, s = b.series;
+      if (!s) return;
+      var u = b.unit || "", self = this;
+      var unitFmt = function (v) { return v == null ? "—" : fmtNum(v) + " " + u; };
+      // 在库曲线
+      var proj = s.projDates || [], n = s.dates.length, k = proj.length;
+      var pad = function (arr, before, after) { var o = []; for (var i = 0; i < before; i++) o.push(null); o = o.concat(arr || []); for (var j = 0; j < after; j++) o.push(null); return o; };
+      var x = s.dates.concat(proj).map(shortDate);
+      var series = [
+        line("实际总在库", pad(s.onhandTotal, 0, k), C.neutral, { lineStyle: { width: 1.5, color: C.neutral, type: "dotted" }, smooth: false, step: "end" }),
+        line("实际自由在库", pad(s.onhandFree, 0, k), C.s1, { areaStyle: area(C.s1), smooth: false, step: "end" })
+      ];
+      if (s.projSug) {
+        var joinAt = n - 1, last = s.onhandFree[n - 1];
+        var lo = pad(s.projSug.p10, n, 0), band = pad(s.projSug.p90.map(function (v, i) { return v - s.projSug.p10[i]; }), n, 0);
+        series.push({ name: "建议 P10", type: "line", stack: "band", data: lo, showSymbol: false, lineStyle: { opacity: 0 }, tooltip: { show: false }, silent: true });
+        series.push({ name: "建议规则 P10–P90", type: "line", stack: "band", data: band, showSymbol: false, lineStyle: { opacity: 0 }, itemStyle: { color: fade(C.s1, .5) },
+          areaStyle: { color: fade(C.s1, .14) }, tooltip: { show: false }, silent: true });
+        var sug = pad(s.projSug.p50, n, 0); sug[joinAt] = last;
+        series.push(line("建议规则预测", sug, C.s1, { lineStyle: { width: 2.5, color: C.s1, type: [6, 3] } }));
+      }
+      if (s.projCur) {
+        var cur = pad(s.projCur.p50, n, 0); cur[n - 1] = s.onhandFree[n - 1];
+        series.push(line("现行规则预测", cur, C.s2, { lineStyle: { width: 2.5, color: C.s2, type: [6, 3] } }));
+      }
+      var curHigher = b.cur >= b.ss;
+      var ml = [];
+      if (b.cur > 0) ml.push(hline(b.cur, "现行安全库存 " + fmtNum(b.cur), C.s2, curHigher ? "insideEndTop" : "insideEndBottom"));
+      ml.push(hline(b.ss, "建议安全库存 " + fmtNum(b.ss), C.s1, curHigher ? "insideEndBottom" : "insideEndTop"));
+      series[1].markLine = { symbol: "none", silent: true, data: ml };
+      series[1].markArea = { silent: true, itemStyle: { color: "rgba(42,120,214,.035)" }, data: [[{ xAxis: shortDate(proj[0]), name: "预测", label: { color: C.ink3, fontSize: 11, position: "insideTopLeft" } }, { xAxis: shortDate(proj[k - 1]) }]] };
+      var opt = base({ y: { name: u }, fmt: unitFmt, zoom: true });
+      opt.xAxis.data = x;
+      opt.legend.data = series.map(function (x) { return x.name; }).filter(function (nm) { return nm !== "建议 P10"; });
+      opt.series = series;
+      render("m-stock", opt);
+
+      // 四档对比
+      var lvs = m.levels || [];
+      if (lvs.length) {
+        var curName = self.level;
+        var o0 = base({ x: { data: lvs.map(function (l) { return l.name; }), boundaryGap: true,
+            axisLabel: { color: C.ink2, fontSize: 12, formatter: function (n) { return n === curName ? "{b|" + n + "（看板当前）}" : n; }, rich: { b: { fontWeight: 600, color: C.ink } } } },
+          y: { name: u, max: fitMax([b.cur, b.actual && b.actual.avgFree]) }, fmt: unitFmt });
+        o0.tooltip.axisPointer = { type: "shadow" };
+        o0.tooltip.formatter = function (ps) {
+          var l = lvs[ps[0].dataIndex];
+          var h = "<b>" + l.name + "</b>" + ps.map(function (p) { return "<br>" + p.marker + p.seriesName + "：" + unitFmt(p.value); }).join("");
+          if (l.hold) h += "<br>模型值 " + unitFmt(l.rawSs) + "，" + l.hold + "，保持现行";
+          h += "<br>缺货 " + (l.stockoutDays == null ? "—" : Math.round(l.stockoutDays)) + " 天/年 · 交货期 " + fmtNum(l.lead) + " 天";
+          return h;
+        };
+        var refs0 = [];
+        if (b.cur > 0) refs0.push(hline(b.cur, "现行安全库存 " + fmtNum(b.cur), C.s2));
+        if (b.actual) refs0.push(hline(b.actual.avgFree, "实际平均自由在库 " + fmtNum(b.actual.avgFree), C.neutral, "insideStartTop"));
+        o0.series = [
+          { name: "建议安全库存", type: "bar", barWidth: 26, barGap: "30%", data: lvs.map(function (l) { return l.ss; }),
+            itemStyle: { color: C.s1, borderRadius: [4, 4, 0, 0] },
+            label: { show: true, position: "top", color: C.ink2, fontSize: 11, formatter: function (p) { return fmtNum(p.value) + (lvs[p.dataIndex].hold ? "（保持）" : ""); } },
+            markLine: { symbol: "none", silent: true, data: refs0 } },
+          { name: "建议规则模拟平均在库", type: "bar", barWidth: 26, data: lvs.map(function (l) { return l.avg; }),
+            itemStyle: { color: C.s3, borderRadius: [4, 4, 0, 0] } }
+        ];
+        render("m-levels", o0);
+      }
+
+      // 累计出库
+      var c = m.cumulative;
+      if (c) {
+        var o2 = base({ y: { name: u }, fmt: unitFmt });
+        o2.xAxis.data = c.dates.map(shortDate);
+        o2.series = [
+          line("需由安全库存覆盖", c.cover, C.s1, { areaStyle: area(C.s1), smooth: false, step: "end" }),
+          line("按单/BOM（已剔除）", c.bom, C.s2, { smooth: false, step: "end" }),
+          line("匀速参照", c.even, C.neutral, { lineStyle: { width: 1.5, color: C.neutral, type: "dashed" }, smooth: false })
+        ];
+        render("m-cum", o2);
+      }
+
+      // 交货期 → 建议安全库存
+      var ls = m.leadSweep || [];
+      if (ls.length) {
+        var curLead = Math.round(b.lead);
+        var o3 = base({ x: { type: "value", name: "交货期（天）", nameLocation: "middle", nameGap: 26, nameTextStyle: { color: C.ink3, fontSize: 11 }, axisLabel: { color: C.ink3, fontSize: 11 } },
+          y: { name: u, max: fitMax([b.cur]) }, fmt: unitFmt, legend: true });
+        o3.grid.bottom = 44;
+        o3.tooltip.formatter = function (ps) { return "交货期 " + ps[0].value[0] + " 天" + ps.map(function (p) { return "<br>" + p.marker + p.seriesName + "：" + unitFmt(p.value[1]); }).join(""); };
+        var pt = ls.filter(function (p) { return p.lead === curLead; })[0];
+        o3.series = [line("建议安全库存", ls.map(function (p) { return [p.lead, p.ss]; }), C.s1, { areaStyle: area(C.s1), showSymbol: true, symbolSize: 6,
+          markPoint: pt ? { symbol: "circle", symbolSize: 12, itemStyle: { color: C.s1, borderColor: "#fff", borderWidth: 2 },
+            label: { show: true, position: "top", formatter: "当前 " + curLead + " 天", color: C.ink2, fontSize: 11 }, data: [{ coord: [pt.lead, pt.ss] }] } : undefined,
+          markLine: b.cur > 0 ? { symbol: "none", silent: true, data: [hline(b.cur, "现行 " + fmtNum(b.cur), C.s2)] } : undefined }),
+          line("建议规则模拟平均在库", ls.map(function (p) { return [p.lead, p.avg]; }), C.s3, { showSymbol: true, symbolSize: 6 })];
+        render("m-lead", o3);
+      }
+
+      // 服务水平扫描
+      var ss = m.serviceSweep || [];
+      if (ss.length) {
+        var xs = ss.map(function (p) { return "P" + Math.round(p.sl * 100); });
+        var selIdx = ss.map(function (p) { return p.sl; }).indexOf(LEVEL_SL[self.level]);
+        var mark = function (vals, color) {
+          return selIdx < 0 ? undefined : { symbol: "circle", symbolSize: 12, itemStyle: { color: color, borderColor: "#fff", borderWidth: 2 }, label: { show: false }, data: [{ coord: [xs[selIdx], vals[selIdx]] }] };
+        };
+        var avgVals = ss.map(function (p) { return p.avg; });
+        var o4 = base({ y: { name: u, max: fitMax([b.actual && b.actual.avgFree, b.simCur && b.simCur.avg]) }, fmt: unitFmt });
+        o4.xAxis.data = xs; o4.xAxis.boundaryGap = true;
+        var refs = [];
+        if (b.actual) refs.push(hline(b.actual.avgFree, "实际 " + fmtNum(b.actual.avgFree), C.neutral));
+        if (b.simCur) refs.push(hline(b.simCur.avg, "现行模拟 " + fmtNum(b.simCur.avg), C.s2, "insideStartTop"));
+        o4.series = [
+          line("建议规则平均在库", avgVals, C.s1, { areaStyle: area(C.s1), showSymbol: true, symbolSize: 6, markPoint: mark(avgVals, C.s1),
+            markLine: { symbol: "none", silent: true, data: refs } }),
+          line("建议安全库存", ss.map(function (p) { return p.ss; }), C.s3, { showSymbol: true, symbolSize: 6 })
+        ];
+        render("m-sl-stock", o4);
+        var shortVals = ss.map(function (p) { return p.stockoutDays; });
+        var o5 = base({ y: { name: "天/年", max: fitMax([b.actual && b.actual.stockoutDays, b.simCur && b.simCur.stockoutDays]) }, fmt: function (v) { return v == null ? "—" : fmtNum(v) + " 天/年"; } });
+        o5.xAxis.data = xs; o5.xAxis.boundaryGap = true;
+        var refs2 = [];
+        if (b.actual) refs2.push(hline(b.actual.stockoutDays, "实际 " + Math.round(b.actual.stockoutDays), C.neutral));
+        if (b.simCur) refs2.push(hline(b.simCur.stockoutDays, "现行模拟 " + Math.round(b.simCur.stockoutDays), C.s2, "insideStartTop"));
+        o5.legend = undefined; o5.grid.top = 24;
+        o5.series = [line("建议规则缺货天数", shortVals, C.s1, { areaStyle: area(C.s1), showSymbol: true, symbolSize: 6, markPoint: mark(shortVals, C.s1),
+          markLine: { symbol: "none", silent: true, data: refs2 } })];
+        render("m-sl-short", o5);
+      }
+    }
+  },
+  mounted: function () {
+    var self = this;
+    window.addEventListener("resize", function () { Object.keys(charts).forEach(function (k) { charts[k].resize(); }); });
+    try {
+      var st = JSON.parse(localStorage.getItem(STORE_KEY) || "null");
+      if (st && Array.isArray(st.materials)) this.materials = st.materials;
+    } catch (e) {}
+    var mats = this.materials.length ? Promise.resolve(this.materials) : fetch("data/materials-all.json").then(function (r) { return r.json(); }).catch(function () { return []; });
+    var want = (new URLSearchParams(location.search)).get("code");
+    Promise.all([this.getJSON("api/status"), this.getJSON("api/overview"), this.getJSON("api/results"), mats]).then(function (all) {
+      self.apiOk = true;
+      self.ov = all[1];
+      self.results = Object.freeze(all[2]);
+      self.level = all[2].params.level || "激进";
+      self.materials = all[3];
+      self.buildOptions();
+      self.$nextTick(function () {
+        self.drawOverview();
+        self.loadIndex();
+        self.loadLevels();
+        self.loadPortfolio();
+        self.code = want || (self.picks[0] && self.picks[0].code) || "";
+        if (want && !self.allOptions.some(function (o) { return o.code === want; })) self.allOptions.unshift({ key: want, code: want, name: "", r: {} });
+        self.filterOptions("");
+        self.loadMaterial();
+      });
+    }).catch(function () { self.apiOk = false; }).then(function () { self.checked = true; });
+  }
+});
+</script>
+</body>
+</html>
